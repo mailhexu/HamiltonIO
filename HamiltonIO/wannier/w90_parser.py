@@ -6,7 +6,7 @@ from ase.io import read
 from ase.atoms import Atoms
 from ase.units import Angstrom, Bohr
 from .w90_tb_parser import parse_tb_file
-from TB2J.utils import split_symbol_number
+from .utils import split_symbol_number
 
 unit_dict = {"ANG": Angstrom, "BOHR": Bohr}
 

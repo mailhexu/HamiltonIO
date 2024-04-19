@@ -8,9 +8,10 @@ from collections import defaultdict
 from HamiltonIO.general import AbstractTB
 
 # from tbmodels import Model
+from HamiltonIO.abstracTB import AbstractTB
 from ase.atoms import Atoms
-from TB2J.utils import auto_assign_basis_name
-from TB2J.wannier import parse_ham, parse_xyz, parse_atoms, parse_tb
+from .utils import auto_assign_basis_name
+from .w90_parser import parse_ham, parse_xyz, parse_atoms, parse_tb
 
 
 class MyTB(AbstractTB):
