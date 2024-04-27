@@ -5,10 +5,8 @@ from scipy.linalg import eigh
 from scipy.sparse import csr_matrix
 from scipy.io import netcdf_file
 from collections import defaultdict
-from HamiltonIO.general import AbstractTB
 
-# from tbmodels import Model
-from HamiltonIO.abstracTB import AbstractTB
+from HamiltonIO.abstractTB import AbstractTB
 from ase.atoms import Atoms
 from .utils import auto_assign_basis_name
 from .w90_parser import parse_ham, parse_xyz, parse_atoms, parse_tb
@@ -118,7 +116,9 @@ class MyTB(AbstractTB):
         :param path: path
         :param prefix: prefix to the wannier files, often wannier90, or wannier90_up, or wannier90_dn for vasp.
         """
-
+        if atoms is None:
+            atoms = parse_atoms(os.path.join(path, prefix + ".win"))
+        cell = atoms.get_cell()
         tb_fname = os.path.join(path, prefix + "_tb.dat")
         hr_fname = os.path.join(path, prefix + "_hr.dat")
         if os.path.exists(tb_fname):
@@ -127,26 +127,34 @@ class MyTB(AbstractTB):
             nbasis, data, R_degens = parse_ham(
                 fname=os.path.join(path, prefix + "_hr.dat")
             )
-            xcart, _, _ = parse_xyz(fname=os.path.join(path, prefix + "_centres.xyz"))
-
-        if atoms is None:
-            atoms = parse_atoms(os.path.join(path, prefix + ".win"))
-        cell = atoms.get_cell()
-        xred = cell.scaled_positions(xcart)
+            xyz_fname = os.path.join(path, prefix + ".xyz")
+            if os.path.exists(xyz_fname):
+                has_xyz = True
+                xcart, _, _ = parse_xyz(fname=xyz_fname)
+                xred = cell.scaled_positions(xcart)
+            else:
+                has_xyz = False
+                xcart = None
+                xred = None
         if groupby == "spin":
             norb = nbasis // 2
             xtmp = copy.deepcopy(xred)
-            xred[::2] = xtmp[:norb]
-            xred[1::2] = xtmp[norb:]
+            if has_xyz:
+                xred[::2] = xtmp[:norb]
+                xred[1::2] = xtmp[norb:]
             for key, val in data.items():
                 dtmp = copy.deepcopy(val)
                 data[key][::2, ::2] = dtmp[:norb, :norb]
                 data[key][::2, 1::2] = dtmp[:norb, norb:]
                 data[key][1::2, ::2] = dtmp[norb:, :norb]
                 data[key][1::2, 1::2] = dtmp[norb:, norb:]
-        ind, positions = auto_assign_basis_name(xred, atoms)
+        if has_xyz:
+            ind, positions = auto_assign_basis_name(xred, atoms)
         m = MyTB(nbasis=nbasis, data=data, positions=xred, R_degens=R_degens)
-        nm = m.shift_position(positions)
+        if has_xyz:
+            nm = m.shift_position(positions)
+        else:
+            nm = m
         nm.set_atoms(atoms)
         return nm
 
@@ -213,6 +221,10 @@ class MyTB(AbstractTB):
         S = None
         evals, evecs = eigh(H)
         return H, S, evals, evecs
+
+    def solve_all(self, kpts, convention=2):
+        _, _, evals, evecs = self.HS_and_eigen(kpts, convention=convention)
+        return evals, evecs
 
     def HS_and_eigen(self, kpts, convention=2):
         """
