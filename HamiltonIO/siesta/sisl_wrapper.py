@@ -1,16 +1,16 @@
 import os
 import numpy as np
 from ase.atoms import Atoms
-from TB2J.utils import symbol_number
 from collections import defaultdict
 from scipy.linalg import eigh
+from TB2J.utils import symbol_number
 from TB2J.myTB import AbstractTB
 from TB2J.mathutils import Lowdin
 
 
 class SislWrapper(AbstractTB):
     def __init__(self, sisl_hamiltonian, geom=None, spin=None):
-        self.is_siesta = False
+        self._name = "SIESTA"
         self.is_orthogonal = False
         self.ham = sisl_hamiltonian
         # k2Rfactor : H(k) = \int_R H(R) * e^(k2Rfactor * k.R)
@@ -19,7 +19,7 @@ class SislWrapper(AbstractTB):
             spin = 0
         elif spin == "down":
             spin = 1
-        if spin not in [None, 0, 1, "merge", "fakemerge"]:
+        if spin not in [None, 0, 1, "merge" ]:
             raise ValueError("spin should be None/0/1, but is %s" % spin)
         self.spin = spin
         self.orbs = []
@@ -53,7 +53,6 @@ class SislWrapper(AbstractTB):
             self.ham.spin.is_spinorbit
             or self.ham.spin.is_noncolinear
             or self.spin == "merge"
-            or self.spin == "fakemerge"
         ):
             for ia, a in enumerate(_atoms):
                 symnum = sdict[ia]
@@ -68,6 +67,7 @@ class SislWrapper(AbstractTB):
         else:
             raise ValueError("The hamiltonian should be either spin-orbit or colinear")
         self._name = "SIESTA"
+    
 
     def view_info(self):
         print(self.orb_dict)
@@ -93,16 +93,6 @@ class SislWrapper(AbstractTB):
             evals[1::2] = evals1
             evecs[::2, ::2] = evecs0
             evecs[1::2, 1::2] = evecs1
-
-        elif self.spin == "fakemerge":
-            evals0, evecs0 = self.ham.eigh(k=k, eigvals_only=False, gauge=gauge)
-            evals1, evecs1 = self.ham.eigh(k=k, eigvals_only=False, gauge=gauge)
-            evals = np.zeros(self.nbasis, dtype=float)
-            evecs = np.zeros((self.nbasis, self.nbasis), dtype=complex)
-            evals[::2] = evals0
-            evals[1::2] = evals1
-            evecs[::2, ::2] = evecs0
-            evecs[1::2, 1::2] = evecs1
         return evals, evecs
 
     def Hk(self, k, convention=2):
@@ -118,10 +108,6 @@ class SislWrapper(AbstractTB):
             H = np.zeros((self.nbasis, self.nbasis), dtype="complex")
             H[::2, ::2] = self.ham.Hk(k, spin=0, gauge=gauge, format="dense")
             H[1::2, 1::2] = self.ham.Hk(k, spin=1, gauge=gauge, format="dense")
-        elif self.spin == "fakemerge":
-            H = np.zeros((self.nbasis, self.nbasis), dtype="complex")
-            H[::2, ::2] = self.ham.Hk(k, gauge=gauge, format="dense")
-            H[1::2, 1::2] = self.ham.Hk(k, gauge=gauge, format="dense")
         return H
 
     def eigen(self, k, convention=2):
@@ -140,7 +126,7 @@ class SislWrapper(AbstractTB):
             S = S0
         elif self.spin in [0, 1]:
             S = S0
-        elif self.spin == "merge" or self.spin == "fakemerge":
+        elif self.spin == "merge":
             S = np.zeros((self.nbasis, self.nbasis), dtype="complex")
             S[::2, ::2] = S0
             S[1::2, 1::2] = S0
@@ -219,34 +205,6 @@ class SislWrapper(AbstractTB):
         else:
             os.remove(path)
         self.cache_path = path
-
-    # def get_HSE_cached(self, kpt, convention=2):
-    #     kpt = tuple(kpt)
-    #     kname = f"{kpt[0]:9.5f}_{kpt[1]:9.5f}_{kpt[2]:9.5f}"
-    #     if kname in self.cache_dict:
-    #         path = self.cache_dict[kname]
-    #         Hk = np.memmap(os.path.join(path, 'H.dat'),
-    #                        dtype='complex',
-    #                        mode='r',
-    #                        shape=(self.nbasis, self.nbasis))
-    #         Sk = np.memmap(os.path.join(path, 'H.dat'),
-    #                        dtype='complex',
-    #                        mode='r',
-    #                        shape=(self.nbasis, self.nbasis))
-    #         evalue = np.memmap(os.path.join(path, 'evalue.dat'),
-    #                            dtype='float',
-    #                            mode='r',
-    #                            shape=(self.nbasis))
-    #         evec = np.memmap(os.path.join(path, 'evec.dat'),
-    #                          dtype='complex',
-    #                          mode='r',
-    #                          shape=(self.nbasis, self.nbasis))
-    #     else:
-    #         Hk, Sk, evalue, evec = self.get_HSE(kpt, convention=convention)
-    #         path = os.path.join(self.cache_path, )
-    #         self.cache_dict[tuple(kpt)] = path
-    #         fpH = np.memmap(os.path.join(path, 'H.dat'))
-    #     return Hk, Sk, evalue, evec
 
     def get_HSE(self, kpt, convention=2):
         Hk = self.Hk(kpt, convention=convention)

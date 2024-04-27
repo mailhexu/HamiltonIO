@@ -1,18 +1,19 @@
 import os
 import numpy as np
 import copy
-from scipy.linalg import eigh
-from scipy.sparse import csr_matrix
-from scipy.io import netcdf_file
 from collections import defaultdict
 
 
-class AbstractTB:
+class AbstractTB():
+    """
+    Abstract class for tight-binding-like Hamiltonian.
+    """
+
     def __init__(self, R2kfactor, nspin, norb):
         #: :math:`\alpha` used in :math:`H(k)=\sum_R  H(R) \exp( \alpha k \cdot R)`,
         #: Should be :math:`2\pi i` or :math:`-2\pi i`
-        self.is_siesta = False
         self.is_orthogonal = True
+
         self.R2kfactor = R2kfactor
 
         #: number of spin. 1 for collinear, 2 for spinor.
@@ -33,18 +34,57 @@ class AbstractTB:
         #: The order of the spinor basis.
         #: 1: orb1_up, orb2_up,  ... orb1_down, orb2_down,...
         #: 2: orb1_up, orb1_down, orb2_up, orb2_down,...
+        self._name = "Generic Hamiltonian"
 
-        self._name = None
+    @property
+    def Rlist(self):
+        """
+        list of R vectors.
+        """
+        return np.asarray(self._Rlist)
+
+    @property
+    def orb_names(self):
+        """
+        list of orbital names.
+        """
+        return self._orb_names
+
+    @property
+    def orb_idx(self):
+        """
+        dictionary of orbital index.
+        """
+        return self._orb_idx
+
 
     @property
     def name(self):
         return self._name
+
+    def get_ham_iR(self, iR, dense=True):
+        """
+        get the Hamiltonian H(iR), array of shape (nbasis, nbasis)
+        params:
+        =======
+            iR: integer, index of R vector.
+        Returns:
+        ========
+            H: complex array of shape (nbasis, nbasis). It can be either sparse or dense.
+        """
+        raise NotImplementedError()
 
     def get_hamR(self, R):
         """
         get the Hamiltonian H(R), array of shape (nbasis, nbasis)
         """
         raise NotImplementedError()
+
+    def is_orthogonal(self):
+        """
+        return True if the basis set is orthogonal.
+        """
+        return self.is_orthogonal
 
     def get_orbs(self):
         """
