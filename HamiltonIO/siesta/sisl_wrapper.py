@@ -98,7 +98,6 @@ class SislWrapper(Hamiltonian):
     def Rlist(self):
         return self._Rlist
 
-    # setter for Rlist
     @Rlist.setter
     def Rlist(self, Rlist):
         self._Rlist = Rlist
@@ -117,14 +116,14 @@ class SislWrapper(Hamiltonian):
         """
         return self._Rdict[tuple(R)]
 
-    def _get_HRs_nonpolarized(self,dense=True):
+    def _get_HR_all_nonpolarized(self,dense=True):
         """
         Get the Hamiltonian matrix in real space
         """
-        mat=self.ham._csr
-        return mat.reshape((self.norb,self.norb, self.nR))
+        mat=self.ham._csr.todense()
+        return mat.reshape((self.norb,self.nR, self.norb, 2))[:,:, :, 0].transpose((1, 0, 2))
 
-    def _get_HRs_colinear(self, dense=True):
+    def _get_HR_all_colinear(self, dense=True, ispin=None):
         """
         Get the Hamiltonian matrix in real space
         """
@@ -133,61 +132,52 @@ class SislWrapper(Hamiltonian):
         ndspin = ndspin
         #HRs = np.zeros((2, self.nR, self.norb, self.norb), dtype=float)
 
-        if False:
-            for ispin in range(2):
-                for iR in range(self.nR):
-                    for iorb in range(self.norb):
-                        for jorb in range(self.norb):
-                            HRs[ispin, iR, iorb, jorb] = self.ham[iorb, jorb, ispin, iR]
+        #if False:
+        #    for ispin in range(2):
+        #        for iR in range(self.nR):
+        #            for iorb in range(self.norb):
+        #                for jorb in range(self.norb):
+        #                    HRs[ispin, iR, iorb, jorb] = self.ham[iorb, jorb, ispin, iR]
 
-        # TODO: the current implementation is not efficient. But the following code is not working. 
-        # Check the correct implementation later and replace the long for loop.
         dmat=self.ham._csr.todense()
-        print(dmat.shape)
         mat=dmat.reshape((self.norb,   self.nR, self.norb, 3))
-        HRs = mat.transpose((3, 1, 0, 2))
+        HRs = mat.transpose((3, 1, 0, 2))[:2, :, :, :]
+        if ispin is not None:
+            return HRs[ispin]
+        else:
+            return HRs
 
-       
-        #print(HR.shape)
-        #print(HR[0, 0, :, :].diagonal())
-        
-        #HRs[0] = mat[:, :, 0].reshape((self.norb, self.norb, self.nR))
-        #HRs[1] = mat[:, :][ 1].reshape((self.norb, self.norb, self.nR))
-        return HRs
-
-    def get_SRs(self, dense=True):
-        #smat=self.ham.S._csr.todense()
+    def get_SR_all(self, dense=True):
         smat = np.asarray(self.ham.tocsr(self.ham.S_idx).todense())
-        print(smat)
-        print(smat.shape)
-        print(self.norb, self.nR)
         smat = np.reshape(smat, (self.norb, self.nR, self.norb)).transpose((1, 0, 2))
         return smat
 
-        
-
-    def _get_HRs_SOC(self, dense=True):
+    def _get_HR_all_SOC(self, dense=True):
         """
         Get the Hamiltonian matrix in real space
         """
-        mat = self.ham._csr
+        mat = self.ham._csr.todense()
         norb, norb_sc, ndspin = mat.shape
         nbasis = norb*2
-        ndspin = ndspin
-        HRs = np.zeros((self.norb*2, self.norb*2, self.nR),dtype=complex)
-        HRs[0] = mat[:, :,  0].reshape((self.norb, self.norb, self.nR))
-        HRs[0] = mat[:, :,  0].reshape((self.norb, self.norb, self.nR))
+        mat=mat.reshape((nbasis, self.nR, nbasis, ndspin))
+        HRs = np.zeros((self.nR, self.norb*2, self.norb*2),dtype=complex)
+        # up-up:
+        HRs[:, ::2, ::2] = mat[:, :, :, 0] + 1j*mat[:, :, :, 4]
+        # up-down:
+        HRs[:, ::2, 1::2] = mat[:, :, :, 2] + 1j*mat[:, :, :, 3]
+        # down-up:
+        HRs[:, 1::2, ::2] = mat[:, :, :, 6] + 1j*mat[:, :, :, 7]
+        # down-down:
+        HRs[:, 1::2, 1::2] = mat[:, :, :, 1] + 1j*mat[:, :, :, 5]
         return HRs
 
-    def get_HRs(self, dense=True):
+    def get_HR_all(self, dense=True):
         if self.ham.spin.is_colinear:
-            return self._get_HRs_colinear(dense=dense)
+            return self._get_HR_all_colinear(dense=dense)
         elif self.ham.spin.is_spinorbit or self.ham.spin.is_noncolinear:
-            return self._get_HRs_SOC(dense=dense)
+            return self._get_HR_all_SOC(dense=dense)
         else:
-            return self._get_HRs_nonpolarized(dense=dense)
-
-
+            return self._get_HR_all_nonpolarized(dense=dense)
     
 
     def view_info(self):
@@ -443,22 +433,3 @@ class SislWFSXWrapper(SislWrapper):
             pass
 
 
-# def test():
-#    fdf = sisl.get_sile('/home/hexu/projects/learn_siesta/SMO_Wannier/siesta.fdf')
-#    H = fdf.read_hamiltonian(order='nc',dim=2)
-#    print(H._spin._is_polarized)
-#    print(H.__dict__.keys())
-#    print(H._geometry.__dict__.keys())
-#    print(H._geometry.xyz)
-#    print(H._geometry.sc)
-#    H._geometry.sc.cell
-#    orb=H._geometry._atoms[0].orbital[0]
-#    print(orb.name())
-#    s=SislWrapper(H)
-#    s.view_info()
-#
-# import sisl
-# fdf = sisl.get_sile('/home/hexu/projects/learn_siesta/SMO_Wannier/siesta.fdf')
-# H = fdf.read_hamiltonian(order='nc',dim=2)
-# if __name__=='__main__':
-#    test()
