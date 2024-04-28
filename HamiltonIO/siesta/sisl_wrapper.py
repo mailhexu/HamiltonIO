@@ -4,7 +4,7 @@ from ase.atoms import Atoms
 from collections import defaultdict
 from scipy.linalg import eigh
 from TB2J.utils import symbol_number
-from TB2J.myTB import AbstractTB
+from HamiltonIO.hamiltonian import Hamiltonian
 from TB2J.mathutils import Lowdin
 try:
     import sisl
@@ -14,7 +14,7 @@ except Exception as e:
 
 
 
-class SislWrapper(AbstractTB):
+class SislWrapper(Hamiltonian):
     def __init__(self, fdf_fname=None, sisl_hamiltonian=None, geom=None, spin=None):
         self._name = "SIESTA"
         self.is_orthogonal = False
