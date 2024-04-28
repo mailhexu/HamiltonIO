@@ -13,7 +13,7 @@ SCF.Mixer.Weight	0.4
 SaveHS	True
 SCFMustConverge	True
 
-Spin     	COLLINEAR
+Spin     	non-polarized
 XC.functional	GGA
 XC.authors	PBE
 
@@ -44,9 +44,6 @@ AtomicCoordinatesFormat  Ang
      0.000000000      0.000000000      0.000000000 1
 %endblock AtomicCoordinatesAndAtomicSpecies
 
-%block DM.InitSpin
-    1 3.00000000000000
-%endblock DM.InitSpin
 
 DM.UseSaveDM	True
 

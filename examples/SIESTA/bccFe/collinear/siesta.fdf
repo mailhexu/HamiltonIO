@@ -11,17 +11,15 @@ SCF.Mixer.History	16
 SCF.Mixer.Method	Pulay
 SCF.Mixer.Spin	spinor
 SCF.Mixer.Weight	0.4
-SCF.Spin.Fix	True
 SaveHS	True
-Write.DMHS.Netcdf	True
 SCFMustConverge	True
 
 Spin     	COLLINEAR
 XC.functional	GGA
 XC.authors	PBE
 
-MeshCutoff	2721.1386024367243	eV
-PAO.EnergyShift	0.1	eV
+MeshCutoff	1000	eV
+PAO.EnergyShift	0.3	eV
 
 NumberOfSpecies	1
 NumberOfAtoms	1
@@ -30,7 +28,7 @@ NumberOfAtoms	1
 %endblock ChemicalSpecieslabel
 
 %block PAO.BasisSizes
-    Fe.1	DZP
+    Fe.1    SZ	
 %endblock PAO.BasisSizes
 
 
@@ -55,8 +53,8 @@ DM.UseSaveDM	True
 
 #KPoint grid
 %block kgrid_Monkhorst_Pack
-     7       0       0  0.0
-     0       7       0  0.0
-     0       0       7  0.0
+     5       0       0  0.0
+     0       5       0  0.0
+     0       0       5  0.0
 %endblock kgrid_Monkhorst_Pack
 
