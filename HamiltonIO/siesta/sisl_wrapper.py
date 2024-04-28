@@ -34,7 +34,11 @@ class SislWrapper(Hamiltonian):
             spin = 1
         if spin not in [None, 0, 1, "merge" ]:
             raise ValueError("spin should be None/0/1, but is %s" % spin)
+
         self.spin = spin
+        if not self.ham.spin.is_colinear:
+            self.spin = None
+
         self.orbs = []
         self.orb_dict = defaultdict(lambda: [])
         if geom is None:
