@@ -6,13 +6,26 @@ from scipy.linalg import eigh
 from TB2J.utils import symbol_number
 from TB2J.myTB import AbstractTB
 from TB2J.mathutils import Lowdin
+try:
+    import sisl
+except Exception as e:
+    print(e)
+    print("Sisl is not installed, please install it by 'pip install sisl'")
+
 
 
 class SislWrapper(AbstractTB):
-    def __init__(self, sisl_hamiltonian, geom=None, spin=None):
+    def __init__(self, fdf_fname=None, sisl_hamiltonian=None, geom=None, spin=None):
         self._name = "SIESTA"
         self.is_orthogonal = False
-        self.ham = sisl_hamiltonian
+        if fdf_fname is not None:
+            fdf = sisl.get_sile(fdf_fname)
+            self.ham = fdf.read_hamiltonian()
+            self.geom = self.ham._geometry
+        elif sisl_hamiltonian is not None:
+            self.ham = sisl_hamiltonian
+        else:
+            raise ValueError("Either fdf_fname or sisl_hamiltonian should be provided")
         # k2Rfactor : H(k) = \int_R H(R) * e^(k2Rfactor * k.R)
         self.R2kfactor = 2.0j * np.pi  #
         if spin == "up":
@@ -28,7 +41,7 @@ class SislWrapper(AbstractTB):
             g = self.ham._geometry
         else:
             g = geom
-        _atoms = geom._atoms
+        _atoms = self.geom._atoms
         atomic_numbers = []
         self.positions = g.xyz
         self.cell = np.array(g.sc.cell)
@@ -49,6 +62,8 @@ class SislWrapper(AbstractTB):
                 self.orb_dict[ia] += orb_names
             self.norb = len(self.orbs)
             self.nbasis = self.norb
+        elif self.ham.spin.is_colinear and self.spin is None:
+            raise ValueError("spin should be 0/1 for collinear spin, but is %s" % self.spin)
         elif (
             self.ham.spin.is_spinorbit
             or self.ham.spin.is_noncolinear
@@ -64,9 +79,115 @@ class SislWrapper(AbstractTB):
                 self.orb_dict[ia] += orb_names
             self.norb = len(self.orbs) // 2
             self.nbasis = len(self.orbs)
-        else:
-            raise ValueError("The hamiltonian should be either spin-orbit or colinear")
+        else:   # non-polarized, spin=None
+            for ia, a in enumerate(_atoms):
+               symnum = sdict[ia]
+               orb_names = []
+               for x in a.orbitals:
+                   orb_names.append(f"{symnum}|{x.name()}")
+               self.orbs += orb_names
+               self.orb_dict[ia] += orb_names
+            self.norb = len(self.orbs) 
+            self.nbasis = len(self.orbs)
+        
         self._name = "SIESTA"
+
+        self.Rlist = self.geom.sc_off
+
+    @property
+    def Rlist(self):
+        return self._Rlist
+
+    # setter for Rlist
+    @Rlist.setter
+    def Rlist(self, Rlist):
+        self._Rlist = Rlist
+        self._Rdict = {}
+        self._nR = len(self._Rlist)
+        for i, R in enumerate(self.Rlist):
+            self._Rdict[tuple(R)] = i
+
+    @property
+    def nR(self):
+        return self._nR
+
+    def get_Ridx(self, R):
+        """
+        Get the index of R in the Rlist 
+        """
+        return self._Rdict[tuple(R)]
+
+    def _get_HRs_nonpolarized(self,dense=True):
+        """
+        Get the Hamiltonian matrix in real space
+        """
+        mat=self.ham._csr
+        return mat.reshape((self.norb,self.norb, self.nR))
+
+    def _get_HRs_colinear(self, dense=True):
+        """
+        Get the Hamiltonian matrix in real space
+        """
+        #mat = self.ham._csr.todense()
+        norb, norb_sc, ndspin = self.ham._csr.shape
+        ndspin = ndspin
+        #HRs = np.zeros((2, self.nR, self.norb, self.norb), dtype=float)
+
+        if False:
+            for ispin in range(2):
+                for iR in range(self.nR):
+                    for iorb in range(self.norb):
+                        for jorb in range(self.norb):
+                            HRs[ispin, iR, iorb, jorb] = self.ham[iorb, jorb, ispin, iR]
+
+        # TODO: the current implementation is not efficient. But the following code is not working. 
+        # Check the correct implementation later and replace the long for loop.
+        dmat=self.ham._csr.todense()
+        print(dmat.shape)
+        mat=dmat.reshape((self.norb,   self.nR, self.norb, 3))
+        HRs = mat.transpose((3, 1, 0, 2))
+
+       
+        #print(HR.shape)
+        #print(HR[0, 0, :, :].diagonal())
+        
+        #HRs[0] = mat[:, :, 0].reshape((self.norb, self.norb, self.nR))
+        #HRs[1] = mat[:, :][ 1].reshape((self.norb, self.norb, self.nR))
+        return HRs
+
+    def get_SRs(self, dense=True):
+        #smat=self.ham.S._csr.todense()
+        smat = np.asarray(self.ham.tocsr(self.ham.S_idx).todense())
+        print(smat)
+        print(smat.shape)
+        print(self.norb, self.nR)
+        smat = np.reshape(smat, (self.norb, self.nR, self.norb)).transpose((1, 0, 2))
+        return smat
+
+        
+
+    def _get_HRs_SOC(self, dense=True):
+        """
+        Get the Hamiltonian matrix in real space
+        """
+        mat = self.ham._csr
+        norb, norb_sc, ndspin = mat.shape
+        nbasis = norb*2
+        ndspin = ndspin
+        HRs = np.zeros((self.norb*2, self.norb*2, self.nR),dtype=complex)
+        HRs[0] = mat[:, :,  0].reshape((self.norb, self.norb, self.nR))
+        HRs[0] = mat[:, :,  0].reshape((self.norb, self.norb, self.nR))
+        return HRs
+
+    def get_HRs(self, dense=True):
+        if self.ham.spin.is_colinear:
+            return self._get_HRs_colinear(dense=dense)
+        elif self.ham.spin.is_spinorbit or self.ham.spin.is_noncolinear:
+            return self._get_HRs_SOC(dense=dense)
+        else:
+            return self._get_HRs_nonpolarized(dense=dense)
+
+
     
 
     def view_info(self):

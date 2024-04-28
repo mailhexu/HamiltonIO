@@ -4,7 +4,7 @@ import copy
 from collections import defaultdict
 
 
-class AbstractTB():
+class Hamiltonian():
     """
     Abstract class for tight-binding-like Hamiltonian.
     """
@@ -36,6 +36,7 @@ class AbstractTB():
         #: 2: orb1_up, orb1_down, orb2_up, orb2_down,...
         self._name = "Generic Hamiltonian"
 
+
     @property
     def Rlist(self):
         """
@@ -57,28 +58,23 @@ class AbstractTB():
         """
         return self._orb_idx
 
-
     @property
     def name(self):
         return self._name
 
-    def get_ham_iR(self, iR, dense=True):
-        """
-        get the Hamiltonian H(iR), array of shape (nbasis, nbasis)
-        params:
-        =======
-            iR: integer, index of R vector.
-        Returns:
-        ========
-            H: complex array of shape (nbasis, nbasis). It can be either sparse or dense.
-        """
-        raise NotImplementedError()
 
-    def get_hamR(self, R):
+    def get_HR(self, R=None, iR=None, dense=True):
         """
         get the Hamiltonian H(R), array of shape (nbasis, nbasis)
         """
         raise NotImplementedError()
+
+    def get_all_HR(self, dense=True):
+        """
+        get the Hamiltonian H(R) for all R vectors.
+        """
+        raise NotImplementedError()
+
 
     def is_orthogonal(self):
         """
