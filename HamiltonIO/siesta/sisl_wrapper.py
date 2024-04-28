@@ -159,7 +159,7 @@ class SislWrapper(Hamiltonian):
         mat = self.ham._csr.todense()
         norb, norb_sc, ndspin = mat.shape
         nbasis = norb*2
-        mat=mat.reshape((nbasis, self.nR, nbasis, ndspin))
+        mat=mat.reshape((norb, self.nR, norb, ndspin)).transpose((1, 0, 2, 3))
         HRs = np.zeros((self.nR, self.norb*2, self.norb*2),dtype=complex)
         # up-up:
         HRs[:, ::2, ::2] = mat[:, :, :, 0] + 1j*mat[:, :, :, 4]
