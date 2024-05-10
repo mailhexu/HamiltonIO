@@ -6,13 +6,13 @@ from scipy.sparse import csr_matrix
 from scipy.io import netcdf_file
 from collections import defaultdict
 
-from HamiltonIO.abstractTB import AbstractTB
+from HamiltonIO.hamiltonian import Hamiltonian
 from ase.atoms import Atoms
 from .utils import auto_assign_basis_name
 from .w90_parser import parse_ham, parse_xyz, parse_atoms, parse_tb
 
 
-class MyTB(AbstractTB):
+class WannierHam(Hamiltonian):
     def __init__(
         self,
         nbasis,
