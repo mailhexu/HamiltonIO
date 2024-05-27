@@ -163,6 +163,18 @@ class AbacusParser:
         )
         return nbasis, Rlist, HR, SR
 
+    def read_HSR_noncollinear_plus_SOC(self, outpath_plus_SOC=None, binary=None):
+        p = Path(outpath_plus_SOC)
+        HR_filename = str(p / "data-HR-sparse_SPIN0.csr")
+        SR_filename = str(p / "data-SR-sparse_SPIN0.csr")
+        nbasis, Rlist, HR, SR = read_HR_SR(
+            nspin=4,
+            binary=self.binary,
+            HR_fileName=HR_filename,
+            SR_fileName=None,
+        )
+        return nbasis, Rlist, HR, SR
+
     def get_models(self):
         if self.spin == "collinear":
             nbasis, Rlist, HR_up, HR_dn, SR = self.read_HSR_collinear()
