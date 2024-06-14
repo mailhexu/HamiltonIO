@@ -5,6 +5,7 @@ from collections import defaultdict
 from scipy.linalg import eigh
 from TB2J.utils import symbol_number
 from HamiltonIO.hamiltonian import Hamiltonian
+from HamiltonIO.model.kR_convert import R_to_k, k_to_R, R_to_onek
 from TB2J.mathutils import Lowdin
 
 try:
@@ -55,9 +56,10 @@ class SislWrapper(Hamiltonian):
         self.orbs = []
         self.orb_dict = defaultdict(lambda: [])
         if geom is None:
-            g = self.ham._geometry
+            g = self.ham.geometry
         else:
             g = geom
+        self.geom = g
         _atoms = self.geom._atoms
         atomic_numbers = []
         self.positions = g.xyz
@@ -214,11 +216,15 @@ class SislWrapper(Hamiltonian):
         else:
             return self._get_HR_all_nonpolarized(dense=dense)
 
+    @property
+    def HR(self):
+        return self.get_HR_all()
+
     def view_info(self):
         print(self.orb_dict)
         print(self.atoms)
 
-    def solve(self, k, convention=2):
+    def solve_with_sisl(self, k, convention=2):
         if convention == 1:
             gauge = "r"
         elif convention == 2:
@@ -240,23 +246,44 @@ class SislWrapper(Hamiltonian):
             evecs[1::2, 1::2] = evecs1
         return evals, evecs
 
-    def Hk(self, k, convention=2):
+    def solve(self, k, convention=2):
         if convention == 1:
             gauge = "r"
         elif convention == 2:
             gauge = "R"
-        if self.spin is None:
-            H = self.ham.Hk(k, gauge=gauge, format="dense")
-        elif self.spin in [0, 1]:
-            H = self.ham.Hk(k, spin=self.spin, gauge=gauge, format="dense")
+        if self.spin in [0, 1]:
+            evals, evecs = eigh(self.Hk(k, convention=convention))
+        elif self.spin is None:
+            evals, evecs = eigh(self.Hk(k, convention=convention))
         elif self.spin == "merge":
-            H = np.zeros((self.nbasis, self.nbasis), dtype="complex")
-            H[::2, ::2] = self.ham.Hk(k, spin=0, gauge=gauge, format="dense")
-            H[1::2, 1::2] = self.ham.Hk(k, spin=1, gauge=gauge, format="dense")
-        return H
+            evals0, evecs0 = eigh(self.Hk(k, spin=0, convention=convention))
+            evals1, evecs1 = eigh(self.Hk(k, spin=1, convention=convention))
+            evals, evals = self.merge_spin(evals0, evals1, evecs0, evecs1)
+        return evals, evecs
 
-    def eigen(self, k, convention=2):
-        return self.solve(k)
+    def merge_spin(self, evals0, evals1, evecs0, evecs1):
+        evals = np.zeros(self.nbasis, dtype=float)
+        evecs = np.zeros((self.nbasis, self.nbasis), dtype=complex)
+        evals[::2] = evals0
+        evals[1::2] = evals1
+        evecs[::2, ::2] = evecs0
+        evecs[1::2, 1::2] = evecs1
+        return evals, evecs
+
+    def Hk(self, k, convention=2, spin=None):
+        if spin is None:
+            spin = self.spin
+        if spin is None:
+            HR = self.HR
+            H = R_to_onek(k, self.Rlist, HR)
+        elif spin in [0, 1]:
+            HR = self._get_HR_all_colinear(dense=True, ispin=spin)
+            H = R_to_onek(k, self.Rlist, HR)
+        elif spin == "merge":
+            H = np.zeros((self.nbasis, self.nbasis), dtype="complex")
+            H[::2, ::2] = self.Hk(k, spin=0, convention=convention)
+            H[1::2, 1::2] = self.Hk(k, spin=1, convention=convention)
+        return H
 
     def gen_ham(self, k, convention=2):
         return self.Hk(k, convention=convention)
