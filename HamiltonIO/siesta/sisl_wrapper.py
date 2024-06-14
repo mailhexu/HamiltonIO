@@ -141,7 +141,7 @@ class SislWrapper(Hamiltonian):
         Get the Hamiltonian matrix in real space
         """
         mat = self.ham._csr.todense()
-        return mat.reshape((self.norb, self.nR, self.norb, 2))[:, :, :, 0].transpose(
+        self.HR = mat.reshape((self.norb, self.nR, self.norb, 2))[:, :, :, 0].transpose(
             (1, 0, 2)
         )
 
@@ -163,35 +163,35 @@ class SislWrapper(Hamiltonian):
 
         dmat = self.ham._csr.todense()
         mat = dmat.reshape((self.norb, self.nR, self.norb, 3))
-        HRs = mat.transpose((3, 1, 0, 2))[:2, :, :, :]
+        self.HR = mat.transpose((3, 1, 0, 2))[:2, :, :, :]
         if ispin is not None:
-            return HRs[ispin]
+            return self.HR[ispin]
         else:
-            return HRs
+            return self.HR
 
     def get_SR_all(self, dense=True):
         smat = np.asarray(self.ham.tocsr(self.ham.S_idx).todense())
-        smat = np.reshape(smat, (self.norb, self.nR, self.norb)).transpose((1, 0, 2))
-        return smat
+        self.SR = np.reshape(smat, (self.norb, self.nR, self.norb)).transpose((1, 0, 2))
+        return self.SR
 
     def _get_HR_all_SOC(self, dense=True):
         """
         Get the Hamiltonian matrix in real space
         """
         mat = self.ham._csr.todense()
-        HRs = self.convert_sisl_to_spinorham(mat)
-        return HRs
+        self.HR = self.convert_sisl_to_spinorham(mat)
+        return self.HR
 
     def get_HR_soc(self, dense=True):
         """
         Get the spin-orbit part of the Hamiltonian matrix in real space.
         """
         if self.ham_soc is None:
-            return None
+            self.HR_soc = None
         else:
             mat = self.ham_soc._csr.todense()
-            HRs_soc = self.convert_sisl_to_spinorham(mat)
-            return HRs_soc
+            self.HR_soc = self.convert_sisl_to_spinorham(mat)
+        return self.HR_soc
 
     def convert_sisl_to_spinorham(self, mat):
         norb, norb_sc, ndspin = mat.shape
@@ -284,6 +284,9 @@ class SislWrapper(Hamiltonian):
             H[::2, ::2] = self.Hk(k, spin=0, convention=convention)
             H[1::2, 1::2] = self.Hk(k, spin=1, convention=convention)
         return H
+
+    def eigen(self, k, convention=2):
+        return self.solve(k)
 
     def gen_ham(self, k, convention=2):
         return self.Hk(k, convention=convention)
