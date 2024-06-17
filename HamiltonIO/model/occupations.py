@@ -6,6 +6,8 @@ import numpy as np
 from scipy.optimize import brentq
 import sys
 
+import warnings
+
 from ase.dft.dos import DOS
 from scipy import integrate
 
@@ -27,9 +29,20 @@ MAX_EXP_ARGUMENT = np.log(sys.float_info.max)
 #    return ret
 
 
-def myfermi(e, mu, width, nspin):
+def myfermi(e, mu, width=0.01, nspin=1):
+    """
+    the fermi function.
+     .. math::
+        f=\\frac{1}{\exp((e-\mu)/width)+1}
+
+    :param e,mu,width: e,\mu,width
+    """
     x = (e - mu) / width
-    return np.where(x < 10, 2.0 / (nspin * (np.exp(x) + 1.0)), 0.0)
+    # disable overflow warning
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        ret = np.where(x < MAX_EXP_ARGUMENT, (2.0 / nspin) / (1.0 + np.exp(x)), 0.0)
+    return ret
 
 
 class Occupations(object):

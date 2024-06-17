@@ -1,5 +1,5 @@
-from .sisl_wrapper import  SislWrapper
-SiestaHam = SislWrapper
+from .sisl_wrapper import SislParser, SiestaHamiltonian
 
-__all__ = ['SiestaHam', 'SislWrapper']
+SiestaHam = SiestaHamiltonian
 
+__all__ = ["SiestaHam", "SislParser", "SiestaHamiltonian"]
