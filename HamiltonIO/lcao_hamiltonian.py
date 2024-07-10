@@ -8,12 +8,11 @@ import os
 import numpy as np
 from scipy.linalg import eigh
 from copy import deepcopy
-from TB2J.mathutils.rotate_spin import (
+from HamiltonIO.mathutils.rotate_spin import (
     rotate_Matrix_from_z_to_spherical,
     rotate_spinor_matrix_spkron,
     rotate_spinor_matrix_einsum_R,
 )
-from TB2J.utils import symbol_number_list
 from HamiltonIO.hamiltonian import Hamiltonian
 from HamiltonIO.model.kR_convert import R_to_onek, R_to_k
 from functools import lru_cache
