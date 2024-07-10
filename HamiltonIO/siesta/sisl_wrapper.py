@@ -9,7 +9,8 @@ from HamiltonIO.lcao_hamiltonian import LCAOHamiltonian
 from HamiltonIO.model.kR_convert import R_to_k, k_to_R, R_to_onek
 from TB2J.mathutils import Lowdin
 from TB2J.mathutils.rotate_spin import rotate_Matrix_from_z_to_spherical
-from TB2J.pauli import spinpart, pauli_part
+from HamiltonIO.siesta.mysiesta_nc import MySiestaNC
+from TB2J.pauli import spinpart, chargepart
 
 try:
     import sisl
@@ -73,15 +74,29 @@ class SislParser:
         Rlist = self.read_Rlist(self.geom)
         self.nR = len(Rlist)
         HR, SR = self.read_HS(self.nR, norb)
-        print("HR", HR)
-        # nel = self.read_nel(fdf=self.fdf)
-        nel = 16
-        print("nel", nel)
+        # print("HR", HR)
+        nel = self.read_nel(fdf=self.fdf)
+        # print("nel", nel)
         HR_soc = None
         HR_nosoc = None
+
+        so_strength = self.read_so_strength(self.fdf)
+        print("so_strength of siesta", so_strength)
         if self.read_H_soc:
             HR_soc = self.read_HR_soc(self.fdf)
-            HR_nosoc = HR  # - HR_soc
+            HR_nosoc = HR - HR_soc * so_strength
+            # move the charge part of SOC to HR_nosoc
+            for iR, _ in enumerate(Rlist):
+                HR_nosoc[iR] += chargepart(HR_soc[iR])
+                HR_soc[iR] = spinpart(HR_soc[iR])
+            # HR_nosoc += chargepart(HR_soc)
+            # HR_soc = spinpart(HR_soc)
+            print("max of real part of HR_soc", np.max(np.abs(np.real(HR_soc))))
+            print("max of imag part of HR_soc", np.max(np.abs(np.imag(HR_soc))))
+            print("max of real part of HR_nosoc", np.max(np.abs(np.real(HR_nosoc))))
+            print("max of imag part of HR_nosoc", np.max(np.abs(np.imag(HR_nosoc))))
+            print("max of real part of HR", np.max(np.abs(np.real(HR))))
+            print("max of imag part of HR", np.max(np.abs(np.imag(HR))))
         else:
             HR_soc = None
             HR_nosoc = None
@@ -130,6 +145,9 @@ class SislParser:
 
     def read_Rlist(self, fdf):
         return self.geom.sc_off
+
+    def read_so_strength(self, fdf):
+        return fdf.get("Spin.OrbitStrength", default=1.0)
 
     def read_HS(self, nR, norb, dense=True):
         smat = np.asarray(self.ham.tocsr(self.ham.S_idx).todense())
@@ -228,21 +246,39 @@ class SislParser:
         )
         return geom, self.atoms
 
+    def get_nc_path(self, fdf):
+        fname = fdf.dir_file(fdf.get("System_Label", default="siesta") + ".nc")
+        return fname
+
+    def get_so_strength(self, fdf):
+        return fdf.get("Spin_strength", default=1.0)
+
     def read_nel(self, fdf):
-        self.nel = fdf.read_qtot()[0]
+        fname = self.get_nc_path(fdf)
+        nc = MySiestaNC(fname)
+        self.nel = nc.read_qtot()
+
         try:
-            self.nel = fdf.read_qtot()[0]
-        except:
+            fname = self.get_nc_path(fdf)
+            nc = MySiestaNC(fname)
+            self.nel = nc.read_qtot()
+            # self.nel = fdf.read_qtot()[0]
+        except Exception as e:
+            print(e)
             self.nel = None
+        return self.nel
 
     def read_from_sisl(self, fdf, read_H_soc=False):
         if fdf_fname is not None:
-            label = fdf.get("System_Label", default="siesta")
+            fname = self.get_nc_path(fdf)
             self.ham = fdf.read_hamiltonian()
 
     def read_HR_soc(self, fdf):
         # put the soc part of the hamiltonian into HR_soc
-        ham_soc = fdf.read_soc_hamiltonian()
+        fname = self.get_nc_path(fdf)
+        nc = MySiestaNC(fname)
+        ham_soc = nc.read_soc_hamiltonian()
+        # ham_soc = fdf.read_soc_hamiltonian()
         mat = ham_soc._csr.todense()
         HR_soc = self.convert_sisl_to_spinorham(mat)
         return HR_soc
@@ -289,17 +325,6 @@ class SislParser:
         HR = self.convert_sisl_to_spinorham(mat)
         return HR
 
-    def _get_HR_soc(self, ham_soc, dense=True):
-        """
-        Get the spin-orbit part of the Hamiltonian matrix in real space.
-        """
-        if ham_soc is None:
-            self._HR_soc = None
-        else:
-            mat = ham_soc._csr.todense()
-            self._HR_soc = self.convert_sisl_to_spinorham(mat)
-        return self._HR_soc
-
     def convert_sisl_to_spinorham(self, mat):
         norb, norb_sc, ndspin = mat.shape
         nbasis = norb * 2
@@ -325,10 +350,10 @@ class SislParser:
 
     @property
     def HR(self):
+        print("HR here1: sisl")
         if self.split_soc:
             _HR = np.zeros_like(self.HR_soc)
             for iR, _ in enumerate(self.Rlist):
-                print("theta, phi", self.soc_rotation_angle)
                 theta, phi = self.soc_rotation_angle
                 _HR[iR] = (
                     rotate_Matrix_from_z_to_spherical(self.HR_nosoc[iR], theta, phi)

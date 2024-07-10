@@ -8,10 +8,15 @@ import os
 import numpy as np
 from scipy.linalg import eigh
 from copy import deepcopy
-from TB2J.mathutils.rotate_spin import rotate_Matrix_from_z_to_spherical
+from TB2J.mathutils.rotate_spin import (
+    rotate_Matrix_from_z_to_spherical,
+    rotate_spinor_matrix_spkron,
+    rotate_spinor_matrix_einsum_R,
+)
 from TB2J.utils import symbol_number_list
 from HamiltonIO.hamiltonian import Hamiltonian
-from HamiltonIO.model.kR_convert import R_to_onek
+from HamiltonIO.model.kR_convert import R_to_onek, R_to_k
+from functools import lru_cache
 
 
 class LCAOHamiltonian(Hamiltonian):
@@ -27,6 +32,7 @@ class LCAOHamiltonian(Hamiltonian):
         HR_soc=None,
         HR_nosoc=None,
         nel=None,
+        so_strength=1.0,
     ):
         self.R2kfactor = 2j * np.pi
         self.is_orthogonal = False
@@ -34,7 +40,6 @@ class LCAOHamiltonian(Hamiltonian):
         self._name = "LCAOHamiltonian"
         self._HR = HR
         self.SR = SR
-        print(f"SR: {SR}")
         self.Rlist = Rlist
         self.nbasis = nbasis
         self.orbs = orbs
@@ -45,6 +50,7 @@ class LCAOHamiltonian(Hamiltonian):
         if HR_soc is not None:
             self.set_HR_soc(HR_soc=HR_soc, HR_nosoc=HR_nosoc, HR_full=HR)
         self.soc_rotation_angle = [0.0, 0.0]
+        self.so_strength = so_strength
 
     @property
     def Rlist(self):
@@ -59,7 +65,21 @@ class LCAOHamiltonian(Hamiltonian):
         """
         Get the index of R in the Rlist
         """
-        return self._Rdict[tuple(R)]
+        return self.Rdict[tuple(R)]
+
+    def get_H0(self):
+        return self._get_H0(*self.soc_rotation_angle)
+
+    @lru_cache(maxsize=2)
+    def _get_H0(self, theta, phi):
+        R0 = self.get_Ridx((0, 0, 0))
+        if self.split_soc:
+            return rotate_spinor_matrix_einsum_R(self.HR_nosoc, theta, phi)[R0]
+        else:
+            return self.HR[R0]
+
+    def get_Hk_soc(self, kpts):
+        return R_to_k(kpts, self.Rlist, self.HR_soc)
 
     def set_HR_soc(self, HR_soc=None, HR_nosoc=None, HR_full=None):
         self.split_soc = True
@@ -75,6 +95,9 @@ class LCAOHamiltonian(Hamiltonian):
         # print(f"HR_nosoc: {self.HR_nosoc}")
         # print(f"HR_full: {self.HR_full}")
 
+    def set_so_strength(self, so_strength):
+        self.so_strength = so_strength
+
     def set_Hsoc_rotation_angle(self, angle):
         """
         Set the rotation angle for SOC part of Hamiltonian
@@ -84,15 +107,26 @@ class LCAOHamiltonian(Hamiltonian):
     @property
     def HR(self):
         if self.split_soc:
-            HR = np.zeros_like(self.HR_soc)
-            for iR, _ in enumerate(self.Rlist):
-                theta, phi = self.soc_rotation_angle
-                HR[iR] = self.HR_nosoc[iR] + rotate_Matrix_from_z_to_spherical(
-                    self.HR_soc[iR], theta, phi
-                )
-            return HR
+            theta, phi = self.soc_rotation_angle
+            # HR = np.zeros_like(self.HR_soc)
+            # for iR, _ in enumerate(self.Rlist):
+            #    #HR[iR] = rotate_Matrix_from_z_to_spherical(self.HR_nosoc[iR], theta, phi) + self.HR_soc[iR] * self.so_strength
+            #    HR[iR] = rotate_spinor_matrix_spkron(self.HR_nosoc[iR], theta, phi) + self.HR_soc[iR] * self.so_strength
+            _HR = self.get_HR_from_soc(theta, phi, self.so_strength)
+            return _HR
         else:
             return self._HR
+
+    @lru_cache(maxsize=1)
+    def get_HR_from_soc(self, theta, phi, so_strength):
+        print(f"theta: {theta}, phi: {phi}")
+        print(f"so_strength: {so_strength}")
+        HR = (
+            rotate_spinor_matrix_einsum_R(self.HR_nosoc, theta, phi)
+            + self.HR_soc * so_strength
+        )
+        # HR = self.HR_nosoc + self.HR_soc * so_strength
+        return HR
 
     @HR.setter
     def set_HR(self, HR):

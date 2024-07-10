@@ -59,6 +59,7 @@ class Occupations(object):
         self.wk = wk
         self.nk = len(wk)
         self.nspin = nspin
+        self.mu = None
 
     def get_mu(self):
         """Return the Fermi-level (or chemical potential)."""
@@ -155,6 +156,11 @@ class Occupations(object):
 
         self.mu, self.f = mu, f
         return f
+
+    def efermi(self, e=None):
+        if self.mu is None:
+            self.occupy(e)
+        return self.mu
 
     def plot(self):
         import pylab as pl
