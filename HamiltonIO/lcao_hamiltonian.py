@@ -202,10 +202,11 @@ class LCAOHamiltonian(Hamiltonian):
         """
         nk = len(kpts)
         hams = np.zeros((nk, self.nbasis, self.nbasis), dtype=complex)
+        Ss = np.zeros((nk, self.nbasis, self.nbasis), dtype=complex)
         evals = np.zeros((nk, self.nbasis), dtype=float)
         evecs = np.zeros((nk, self.nbasis, self.nbasis), dtype=complex)
         for ik, k in enumerate(kpts):
-            hams[ik], S, evals[ik], evecs[ik] = self.HSE_k(
+            hams[ik], Ss[ik], evals[ik], evecs[ik] = self.HSE_k(
                 tuple(k), convention=convention
             )
-        return hams, None, evals, evecs
+        return hams, Ss, evals, evecs

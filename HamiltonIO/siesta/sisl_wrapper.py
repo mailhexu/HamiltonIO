@@ -7,10 +7,9 @@ from TB2J.utils import symbol_number
 from HamiltonIO.hamiltonian import Hamiltonian
 from HamiltonIO.lcao_hamiltonian import LCAOHamiltonian
 from HamiltonIO.model.kR_convert import R_to_k, k_to_R, R_to_onek
-from TB2J.mathutils import Lowdin
-from TB2J.mathutils.rotate_spin import rotate_Matrix_from_z_to_spherical
+#from TB2J.mathutils import Lowdin
+from HamiltonIO.mathutils.rotate_spin import rotate_Matrix_from_z_to_spherical
 from HamiltonIO.siesta.mysiesta_nc import MySiestaNC
-from TB2J.pauli import spinpart, chargepart
 
 try:
     import sisl
@@ -105,6 +104,7 @@ class SislParser:
         so_strength = self.read_so_strength(self.fdf)
         print("so_strength of siesta", so_strength)
         if self.read_H_soc:
+            from TB2J.pauli import spinpart, chargepart
             HR_soc = self.read_HR_soc(self.fdf)
             HR_nosoc = HR - HR_soc * so_strength
             # move the charge part of SOC to HR_nosoc
@@ -162,6 +162,10 @@ class SislParser:
                 atoms=self.atoms,
             )
             model = (model_up, model_down)
+            if self.ispin is not None:
+                return model[self.ispin]
+            else:
+                return model
 
         return model
 

@@ -150,7 +150,7 @@ class WannierHam(Hamiltonian):
                 data[key][1::2, 1::2] = dtmp[norb:, norb:]
         if has_xyz:
             ind, positions = auto_assign_basis_name(xred, atoms)
-        m = Hamiltonian(nbasis=nbasis, data=data, positions=xred, R_degens=R_degens)
+        m = WannierHam(nbasis=nbasis, data=data, positions=xred, R_degens=R_degens)
         if has_xyz:
             nm = m.shift_position(positions)
         else:
