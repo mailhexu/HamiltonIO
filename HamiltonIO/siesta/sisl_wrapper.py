@@ -33,6 +33,28 @@ class SiestaHamiltonian(LCAOHamiltonian):
         HR_soc=None,
         nel=None,
     ):
+        """
+        Hamiltonian object for Siesta
+        params:
+        HR: numpy array. index (iR, iorb1, iorb2)
+             Real space Hamiltonian
+        SR: numpy array. index (iR, iorb1, iorb2)
+            Real space overlap matrix
+        Rlist: list of numpy array. index (iR, 3)
+            Real space lattice vectors
+        nbasis: int
+            number of basis
+        atoms: Atoms object
+            Atoms object
+        orbs: list of str
+            list of orbital names
+        nspin: int
+            number of spin
+        HR_nosoc: numpy array. index (iR, iorb1, iorb2)
+            Real space Hamiltonian without SOC
+        HR_soc: numpy array. index (iR, iorb1, iorb2)
+            Real space Hamiltonian with SOC
+        """
         super().__init__(
             HR=HR,
             SR=SR,
