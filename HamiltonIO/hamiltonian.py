@@ -2,14 +2,32 @@ import os
 import numpy as np
 import copy
 from collections import defaultdict
+from dataclasses import dataclass
 
 
-class Hamiltonian():
+@dataclass
+class BaseHamiltonian:
+    is_orthogonal: bool = True
+    _name: str = "Base Hamiltonian"
+    R2kfactor: float = 2 * np.pi
+    _nspin: int = 1
+    norb: int = 0
+    nbasis: int = 0
+
+
+class Hamiltonian(BaseHamiltonian):
     """
     Abstract class for tight-binding-like Hamiltonian.
     """
 
-    def __init__(self, R2kfactor, nspin, norb):
+    def __init__(
+        self,
+        R2kfactor=2 * np.pi,
+        nspin=1,
+        norb=0,
+        is_orthogonal=True,
+        _name="Generic Hamiltonian",
+    ):
         #: :math:`\alpha` used in :math:`H(k)=\sum_R  H(R) \exp( \alpha k \cdot R)`,
         #: Should be :math:`2\pi i` or :math:`-2\pi i`
         self.is_orthogonal = True
@@ -35,7 +53,6 @@ class Hamiltonian():
         #: 1: orb1_up, orb2_up,  ... orb1_down, orb2_down,...
         #: 2: orb1_up, orb1_down, orb2_up, orb2_down,...
         self._name = "Generic Hamiltonian"
-
 
     @property
     def Rlist(self):
@@ -72,7 +89,6 @@ class Hamiltonian():
         """
         return self._name
 
-
     def get_HR(self, R=None, iR=None, ispin=0, dense=True):
         """
         get the Hamiltonian H(R), array of shape (nbasis, nbasis)
@@ -103,15 +119,14 @@ class Hamiltonian():
             if True, convert to dense matrix if the default format is sparse.
         ispin: int or None
             For collinear system: 0 for up, 1 for down, None for both.
-            For others, ispin is ignored. 
+            For others, ispin is ignored.
         Returns:
         =================
         H:  array of shape ( nR, nbasis, nbasis)
           if ispin is None, and kspin=2, H.shape=(nR, nbasis, nbasis, 2)
-        
+
         """
         raise NotImplementedError()
-
 
     def get_orbs(self):
         """
@@ -121,7 +136,6 @@ class Hamiltonian():
 
     def HSE(self, kpt):
         raise NotImplementedError()
-
 
     def HS_and_eigen(self, kpts):
         """
@@ -201,4 +215,3 @@ class Hamiltonian():
         evecs: array of shape (nbasis, nbands)
         """
         raise NotImplementedError()
-
