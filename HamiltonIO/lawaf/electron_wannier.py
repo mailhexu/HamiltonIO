@@ -1,11 +1,11 @@
 import numpy as np
 from ase import Atoms
 from scipy.linalg import eigh
-from hamiltonIO.hamiltonian import Hamiltonian
-from lawaf.mathutils.kR_convert import R_to_onek
+from HamiltonIO.hamiltonian import Hamiltonian
+from HamiltonIO.mathutils.kR_convert import R_to_onek
 
 
-class EWF(Hamiltonian):
+class LawafHamiltonian(Hamiltonian):
     """
     LWF
     elements:
@@ -17,38 +17,43 @@ class EWF(Hamiltonian):
         wann_centers: centers of Wannier functions.
         wann_names: names of Wannier functions.
     """
-
-    Rlist: np.ndarray = None
-    Rdeg: np.ndarray = None
-    wannR: np.ndarray = None
-    HwannR: np.ndarray = None
-    kpts: np.ndarray = None
-    kweights: np.ndarray = None
-    wann_centers: np.ndarray = None
-    wann_names: list = None
-    atoms: Atoms = None
-
     def __init__(
         self,
-        Rlist,
-        Rdeg,
-        wannR,
-        HwannR,
-        kpts,
-        kweights,
-        wann_centers,
-        wann_names,
+        Rlist=None,
+        Rdeg=None,
+        wannR=None,
+        HwannR=None,
+        wann_centers=None,
+        wann_names=None,
         atoms=None,
+        kpts=None,
+        kweights=None,
     ):
         super().__init__(
             _name="LaWaF Electron Wannier",
+            is_orthogonal=True, 
+            R2kfactor=2 * np.pi,
+            nspin=1,
+            norb=wannR.shape[2],
         )
+        self.Rlist = Rlist
+        self.Rdeg = Rdeg
+        self.wannR = wannR
+        self.HwannR = HwannR
+        self.wann_centers = wann_centers
+        self.wann_names = wann_names
+        self.atoms = atoms
+        self.kpts = kpts
+        self.kweights = kweights
+        self._Rdict = {tuple(R): i for i, R in enumerate(self.Rlist)}
+
 
     def __post_init__(self):
         self.nR, self.nbasis, self.nwann = self.wannR.shape
         self.natoms = self.nbasis // 3
         self.nR = self.Rlist.shape[0]
         # self.check_normalization()
+
 
     def save_pickle(self, filename):
         """
@@ -65,7 +70,6 @@ class EWF(Hamiltonian):
         load the LWF from pickle file.
         """
         import pickle
-
         with open(filename, "rb") as f:
             return pickle.load(f)
 
@@ -75,7 +79,6 @@ class EWF(Hamiltonian):
         """
         import xarray as xr
 
-        print(f"wann_masses: {self.wann_masses}")
         ds = xr.Dataset(
             {
                 "factor": self.factor,
@@ -154,6 +157,18 @@ class EWF(Hamiltonian):
         self.wann_norm = np.sum(self.wannR * self.wannR.conj(), axis=(0, 1)).real
         print(f"Norm of Wannier functions: {self.wann_norm}")
 
+    def get_HR(self, R=None, iR=None, ispin=0):
+        """
+        get the Hamiltonian at R-vector.
+        """
+        if iR is None:
+            iR = self._Rdict[tuple(R)]
+        H = self.HwannR[iR]
+        return H
+
+    def get_all_HR(self):
+        return self.HwannR
+
     def get_Hk(self, kpt):
         """
         get the Hamiltonian at k-point.
@@ -174,7 +189,7 @@ class EWF(Hamiltonian):
 
     def solve_all(self, kpts):
         """
-        solve the Hamiltonian at all k-points with NAC.
+        solve the Hamiltonian at all k-points.
         """
         evals = []
         evecs = []
@@ -184,7 +199,27 @@ class EWF(Hamiltonian):
             evecs.append(v)
         return np.array(evals), np.array(evecs)
 
-    def HS_and_eigen(self, kpt):
+    def HS_and_eigen(self, kpts):
+        Hks=[]
+        evals=[]
+        evecs=[]
+        for kpt in kpts:
+            Hk = self.get_Hk(kpt)
+            evals, evecs = eigh(Hk)
+            Hks.append(Hk)
+            evals.append(evals)
+            evecs.append(evecs)
+        Hks = np.array(Hks)
+        evals = np.array(evals)
+        evecs = np.array(evecs)
+        return Hk, None, evals, evecs
+
+    def HSE_k(self, kpt):
+        Hk = self.get_Hk(kpt)
+        evals, evecs = eigh(Hk)
+        return Hk, None, evals, evecs
+
+    def get_HS_and_eigen_k(self, kpt):
         Hk = self.get_Hk(kpt)
         evals, evecs = eigh(Hk)
         return Hk, None, evals, evecs

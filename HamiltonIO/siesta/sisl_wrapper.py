@@ -31,6 +31,7 @@ class SiestaHamiltonian(LCAOHamiltonian):
         HR_nosoc=None,
         HR_soc=None,
         nel=None,
+        orth=False,
     ):
         """
         Hamiltonian object for Siesta
@@ -53,7 +54,13 @@ class SiestaHamiltonian(LCAOHamiltonian):
             Real space Hamiltonian without SOC
         HR_soc: numpy array. index (iR, iorb1, iorb2)
             Real space Hamiltonian with SOC
+        orth: bool
+            whether the Hamiltonian is orthogonalized with Lowdin's method
         """
+        self._name = "SIESTA"
+        self.is_orthogonal = False
+        self.R2kfactor = 2j * np.pi
+
         super().__init__(
             HR=HR,
             SR=SR,
@@ -65,11 +72,9 @@ class SiestaHamiltonian(LCAOHamiltonian):
             HR_nosoc=HR_nosoc,
             HR_soc=HR_soc,
             nel=nel,
+            orth=orth,
         )
-        self._name = "SIESTA"
-        self.is_orthogonal = False
-        self.R2kfactor = 2j * np.pi
-
+        
 
 class SislParser:
     """
@@ -81,12 +86,14 @@ class SislParser:
         fdf_fname=None,
         ispin=None,
         read_H_soc=False,
+        orth=False
     ):
         self.fdf = sisl.get_sile(fdf_fname)
         self.ham = self.fdf.read_hamiltonian()
         self.spin = self.ham.spin
         self.ispin = ispin
         self.read_H_soc = read_H_soc
+        self.orth = orth
 
     def get_model(self):
         self.read_spin(self.ispin)
@@ -95,14 +102,11 @@ class SislParser:
         Rlist = self.read_Rlist(self.geom)
         self.nR = len(Rlist)
         HR, SR = self.read_HS(self.nR, norb)
-        # print("HR", HR)
         nel = self.read_nel(fdf=self.fdf)
-        # print("nel", nel)
         HR_soc = None
         HR_nosoc = None
 
         so_strength = self.read_so_strength(self.fdf)
-        print("so_strength of siesta", so_strength)
         if self.read_H_soc:
             from TB2J.pauli import spinpart, chargepart
             HR_soc = self.read_HR_soc(self.fdf)
@@ -134,6 +138,7 @@ class SislParser:
                 HR_soc=HR_soc,
                 nel=nel,
                 atoms=self.atoms,
+                orth=self.orth,
             )
             return model
         else:
@@ -148,6 +153,7 @@ class SislParser:
                 HR_soc=HR_soc,
                 nel=nel,
                 atoms=self.atoms,
+                orth=self.orth,
             )
             model_down = SiestaHamiltonian(
                 HR=HR[1],
@@ -160,6 +166,7 @@ class SislParser:
                 HR_soc=HR_soc,
                 nel=nel,
                 atoms=self.atoms,
+                orth=self.orth,
             )
             model = (model_up, model_down)
             if self.ispin is not None:
@@ -376,7 +383,6 @@ class SislParser:
 
     @property
     def HR(self):
-        print("HR here1: sisl")
         if self.split_soc:
             _HR = np.zeros_like(self.HR_soc)
             for iR, _ in enumerate(self.Rlist):

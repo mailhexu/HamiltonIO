@@ -15,6 +15,7 @@ from HamiltonIO.mathutils.rotate_spin import (
 )
 from HamiltonIO.hamiltonian import Hamiltonian
 from HamiltonIO.model.kR_convert import R_to_onek, R_to_k
+from HamiltonIO.mathutils.lowdin import Lowdin_symmetric_orthonormalization
 from functools import lru_cache
 
 
@@ -32,6 +33,7 @@ class LCAOHamiltonian(Hamiltonian):
         HR_nosoc=None,
         nel=None,
         so_strength=1.0,
+        orth=False,
     ):
         self.R2kfactor = 2j * np.pi
         self.is_orthogonal = False
@@ -50,6 +52,11 @@ class LCAOHamiltonian(Hamiltonian):
             self.set_HR_soc(HR_soc=HR_soc, HR_nosoc=HR_nosoc, HR_full=HR)
         self.soc_rotation_angle = [0.0, 0.0]
         self.so_strength = so_strength
+        self.orth= orth
+        if orth:
+            self.is_orthogonal = True
+
+
 
     @property
     def Rlist(self):
@@ -66,8 +73,8 @@ class LCAOHamiltonian(Hamiltonian):
         """
         return self.Rdict[tuple(R)]
 
-    def get_H0(self):
-        return self._get_H0(*self.soc_rotation_angle)
+    #def get_H0(self):
+    #    return self._get_H0(*self.soc_rotation_angle)
 
     @lru_cache(maxsize=2)
     def _get_H0(self, theta, phi):
@@ -170,6 +177,9 @@ class LCAOHamiltonian(Hamiltonian):
             #    # Sk = (Sk + Sk.conj().T)/2
             Hk = R_to_onek(k, self.Rlist, self.HR)
             Sk = R_to_onek(k, self.Rlist, self.SR)
+            if self.orth:
+                Hk = Lowdin_symmetric_orthonormalization(Hk, Sk)
+                Sk = None
         elif convention == 1:
             # TODO: implement the first convention (the r convention)
             raise NotImplementedError("convention 1 is not implemented yet.")
@@ -202,11 +212,20 @@ class LCAOHamiltonian(Hamiltonian):
         """
         nk = len(kpts)
         hams = np.zeros((nk, self.nbasis, self.nbasis), dtype=complex)
-        Ss = np.zeros((nk, self.nbasis, self.nbasis), dtype=complex)
+        if self.orth:
+            Ss = None
+        else:
+            Ss = np.zeros((nk, self.nbasis, self.nbasis), dtype=complex)
         evals = np.zeros((nk, self.nbasis), dtype=float)
         evecs = np.zeros((nk, self.nbasis, self.nbasis), dtype=complex)
-        for ik, k in enumerate(kpts):
-            hams[ik], Ss[ik], evals[ik], evecs[ik] = self.HSE_k(
-                tuple(k), convention=convention
+        if self.orth:
+            for ik, k in enumerate(kpts):
+                hams[ik], _, evals[ik], evecs[ik] = self.HSE_k(
+                    tuple(k), convention=convention
+                )
+        else:
+            for ik, k in enumerate(kpts):
+                hams[ik], Ss[ik], evals[ik], evecs[ik] = self.HSE_k(
+                    tuple(k), convention=convention
             )
         return hams, Ss, evals, evecs

@@ -1,2 +1,4 @@
-from ewf import EWF
-from lwf import LWF
+from .electron_wannier import LawafHamiltonian
+#from lwf import LWF
+
+__all__ = ['LawafHamiltonian']

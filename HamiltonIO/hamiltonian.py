@@ -61,6 +61,10 @@ class Hamiltonian(BaseHamiltonian):
         """
         return np.asarray(self._Rlist)
 
+    @Rlist.setter
+    def Rlist(self, value):
+        self._Rlist = value
+
     @property
     def nR(self):
         """
@@ -134,7 +138,7 @@ class Hamiltonian(BaseHamiltonian):
         """
         raise NotImplementedError()
 
-    def HSE(self, kpt):
+    def HSE_k(self, kpt):
         raise NotImplementedError()
 
     def HS_and_eigen(self, kpts):
