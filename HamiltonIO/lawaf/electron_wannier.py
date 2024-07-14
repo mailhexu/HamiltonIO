@@ -23,11 +23,13 @@ class LawafHamiltonian(Hamiltonian):
         Rdeg=None,
         wannR=None,
         HwannR=None,
+        SwannR=None,
         wann_centers=None,
         wann_names=None,
         atoms=None,
         kpts=None,
         kweights=None,
+        orthogonal =True,
     ):
         super().__init__(
             _name="LaWaF Electron Wannier",
@@ -40,6 +42,7 @@ class LawafHamiltonian(Hamiltonian):
         self.Rdeg = Rdeg
         self.wannR = wannR
         self.HwannR = HwannR
+        self.SwannR = SwannR
         self.wann_centers = wann_centers
         self.wann_names = wann_names
         self.atoms = atoms
@@ -176,6 +179,16 @@ class LawafHamiltonian(Hamiltonian):
         Hk = R_to_onek(kpt, self.Rlist, self.HwannR)
         return Hk
 
+    def get_Sk(self, kpt):
+        """
+        get the overlap matrix at k-point.
+        """
+        if self.is_orthogonal:
+            Sk = None
+        else:
+            Sk = R_to_onek(kpt, self.Rlist, self.SwannR)
+        return Sk
+
     def solve_k(self, kpt):
         """
         solve the Hamiltonian at k-point with NAC.
@@ -184,7 +197,8 @@ class LawafHamiltonian(Hamiltonian):
         #    Hk = self.get_Hk_noNAC(kpt)
         # else:
         Hk = self.get_Hk(kpt)
-        evals, evecs = eigh(Hk)
+        Sk = self.get_Sk(kpt)
+        evals, evecs = eigh(Hk, Sk)
         return evals, evecs
 
     def solve_all(self, kpts):
@@ -201,25 +215,34 @@ class LawafHamiltonian(Hamiltonian):
 
     def HS_and_eigen(self, kpts):
         Hks=[]
+        if self.is_orthogonal:
+            Sks = None
+        else:
+            Sks=[]
         evals=[]
         evecs=[]
         for kpt in kpts:
             Hk = self.get_Hk(kpt)
-            evals, evecs = eigh(Hk)
             Hks.append(Hk)
+            if not self.is_orthogonal:
+                Sk = self.get_Sk(kpt)
+                Sks.append(Sk)
+            evals, evecs = eigh(Hk)
             evals.append(evals)
             evecs.append(evecs)
         Hks = np.array(Hks)
         evals = np.array(evals)
         evecs = np.array(evecs)
-        return Hk, None, evals, evecs
+        return Hk, Sks, evals, evecs
 
     def HSE_k(self, kpt):
         Hk = self.get_Hk(kpt)
-        evals, evecs = eigh(Hk)
-        return Hk, None, evals, evecs
+        Sk = self.get_Sk(kpt)
+        evals, evecs = eigh(Hk, Sk)
+        return Hk, Sk, evals, evecs
 
     def get_HS_and_eigen_k(self, kpt):
         Hk = self.get_Hk(kpt)
-        evals, evecs = eigh(Hk)
-        return Hk, None, evals, evecs
+        Sk = self.get_Sk(kpt)
+        evals, evecs = eigh(Hk, Sk)
+        return Hk, Sk, evals, evecs

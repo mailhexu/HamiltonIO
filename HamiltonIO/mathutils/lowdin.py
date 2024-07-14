@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.linalg import inv, eigh
-
+from scipy.linalg import fractional_matrix_power as fmp
 
 def Lowdin(S):
     """
@@ -12,10 +12,11 @@ def Lowdin(S):
     S_half=eigvec @ np.diag(np.sqrt(1.0 / eigval)) @ (eigvec.T.conj())
     return S_half
 
+
 def Lowdin_symmetric_orthonormalization(H, S):
     """
     Lowdin's symmetric orthonormalization.
     """
-    S_half = Lowdin(S)
+    S_half = fmp(S, -0.5)
     H_prime = S_half @ H @ S_half
     return H_prime
