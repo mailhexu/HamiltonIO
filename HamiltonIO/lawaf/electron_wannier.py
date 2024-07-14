@@ -29,11 +29,11 @@ class LawafHamiltonian(Hamiltonian):
         atoms=None,
         kpts=None,
         kweights=None,
-        orthogonal =True,
+        is_orthogonal =True,
     ):
         super().__init__(
             _name="LaWaF Electron Wannier",
-            is_orthogonal=True, 
+            is_orthogonal=is_orthogonal, 
             R2kfactor=2 * np.pi,
             nspin=1,
             norb=wannR.shape[2],
@@ -49,13 +49,8 @@ class LawafHamiltonian(Hamiltonian):
         self.kpts = kpts
         self.kweights = kweights
         self._Rdict = {tuple(R): i for i, R in enumerate(self.Rlist)}
-
-
-    def __post_init__(self):
-        self.nR, self.nbasis, self.nwann = self.wannR.shape
-        self.natoms = self.nbasis // 3
-        self.nR = self.Rlist.shape[0]
         # self.check_normalization()
+        self.nwann = self.wannR.shape[2]
 
 
     def save_pickle(self, filename):
@@ -75,6 +70,22 @@ class LawafHamiltonian(Hamiltonian):
         import pickle
         with open(filename, "rb") as f:
             return pickle.load(f)
+
+    def write_to_txt(self, filename):
+        """
+        write the LWF to txt file.
+        """
+        wannR_fname = filename + "_wannR.txt"
+        with open(wannR_fname, "w") as f:
+            for iR, R in enumerate(self.Rlist):
+                f.write(f"# R = {R}\n")
+                for i in range(self.nwann):
+                    f.write(f"# {self.wann_names[i]}:\n")
+                    for j in range(self.nbasis):
+                        f.write(f"{j:} {self.wannR[iR, j, i]}\n")
+                    f.write("\n")
+                f.write("\n")
+
 
     def write_to_netcdf(self, filename):
         """

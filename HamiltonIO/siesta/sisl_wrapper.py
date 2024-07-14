@@ -173,7 +173,6 @@ class SislParser:
                 return model[self.ispin]
             else:
                 return model
-
         return model
 
     def read_Rlist(self, fdf):

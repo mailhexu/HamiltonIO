@@ -30,7 +30,7 @@ class Hamiltonian(BaseHamiltonian):
     ):
         #: :math:`\alpha` used in :math:`H(k)=\sum_R  H(R) \exp( \alpha k \cdot R)`,
         #: Should be :math:`2\pi i` or :math:`-2\pi i`
-        self.is_orthogonal = True
+        self.is_orthogonal = is_orthogonal
 
         self.R2kfactor = R2kfactor
 
