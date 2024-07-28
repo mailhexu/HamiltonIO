@@ -52,11 +52,10 @@ class LCAOHamiltonian(Hamiltonian):
             self.set_HR_soc(HR_soc=HR_soc, HR_nosoc=HR_nosoc, HR_full=HR)
         self.soc_rotation_angle = [0.0, 0.0]
         self.so_strength = so_strength
-        self.orth= orth
+        self.orth = orth
         if orth:
             self.is_orthogonal = True
-
-
+        self.H0 = None
 
     @property
     def Rlist(self):
@@ -73,14 +72,16 @@ class LCAOHamiltonian(Hamiltonian):
         """
         return self.Rdict[tuple(R)]
 
-    #def get_H0(self):
+    # def get_H0(self):
     #    return self._get_H0(*self.soc_rotation_angle)
 
-    @lru_cache(maxsize=2)
-    def _get_H0(self, theta, phi):
+    def get_H0(self):
         R0 = self.get_Ridx((0, 0, 0))
         if self.split_soc:
-            return rotate_spinor_matrix_einsum_R(self.HR_nosoc, theta, phi)[R0]
+            if self.H0 is None:
+                theta, phi = self.soc_rotation_angle
+                self.H0 = rotate_spinor_matrix_einsum_R(self.HR_nosoc, theta, phi)[R0]
+            return self.H0
         else:
             return self.HR[R0]
 
@@ -114,19 +115,12 @@ class LCAOHamiltonian(Hamiltonian):
     def HR(self):
         if self.split_soc:
             theta, phi = self.soc_rotation_angle
-            # HR = np.zeros_like(self.HR_soc)
-            # for iR, _ in enumerate(self.Rlist):
-            #    #HR[iR] = rotate_Matrix_from_z_to_spherical(self.HR_nosoc[iR], theta, phi) + self.HR_soc[iR] * self.so_strength
-            #    HR[iR] = rotate_spinor_matrix_spkron(self.HR_nosoc[iR], theta, phi) + self.HR_soc[iR] * self.so_strength
             _HR = self.get_HR_from_soc(theta, phi, self.so_strength)
             return _HR
         else:
             return self._HR
 
-    @lru_cache(maxsize=1)
     def get_HR_from_soc(self, theta, phi, so_strength):
-        print(f"theta: {theta}, phi: {phi}")
-        print(f"so_strength: {so_strength}")
         HR = (
             rotate_spinor_matrix_einsum_R(self.HR_nosoc, theta, phi)
             + self.HR_soc * so_strength
@@ -227,5 +221,5 @@ class LCAOHamiltonian(Hamiltonian):
             for ik, k in enumerate(kpts):
                 hams[ik], Ss[ik], evals[ik], evecs[ik] = self.HSE_k(
                     tuple(k), convention=convention
-            )
+                )
         return hams, Ss, evals, evecs

@@ -39,9 +39,11 @@ def myfermi(e, mu, width=0.01, nspin=1):
     """
     x = (e - mu) / width
     # disable overflow warning
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        ret = np.where(x < MAX_EXP_ARGUMENT, (2.0 / nspin) / (1.0 + np.exp(x)), 0.0)
+    # with warnings.catch_warnings():
+    #    warnings.simplefilter("ignore")
+    #    ret = np.where(x < MAX_EXP_ARGUMENT, (2.0 / nspin) / (1.0 + np.exp(x)), 0.0)
+    xp = np.where(x < MAX_EXP_ARGUMENT - 100, x, MAX_EXP_ARGUMENT - 100)
+    ret = (2.0 / nspin) / (1.0 + np.exp(xp))
     return ret
 
 

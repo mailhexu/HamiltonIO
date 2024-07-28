@@ -7,7 +7,8 @@ from TB2J.utils import symbol_number
 from HamiltonIO.hamiltonian import Hamiltonian
 from HamiltonIO.lcao_hamiltonian import LCAOHamiltonian
 from HamiltonIO.model.kR_convert import R_to_k, k_to_R, R_to_onek
-#from TB2J.mathutils import Lowdin
+
+# from TB2J.mathutils import Lowdin
 from HamiltonIO.mathutils.rotate_spin import rotate_Matrix_from_z_to_spherical
 from HamiltonIO.siesta.mysiesta_nc import MySiestaNC
 
@@ -74,20 +75,14 @@ class SiestaHamiltonian(LCAOHamiltonian):
             nel=nel,
             orth=orth,
         )
-        
+
 
 class SislParser:
     """
     Siesta Hamiltonian parser using sisl as backend
     """
 
-    def __init__(
-        self,
-        fdf_fname=None,
-        ispin=None,
-        read_H_soc=False,
-        orth=False
-    ):
+    def __init__(self, fdf_fname=None, ispin=None, read_H_soc=False, orth=False):
         self.fdf = sisl.get_sile(fdf_fname)
         self.ham = self.fdf.read_hamiltonian()
         self.spin = self.ham.spin
@@ -109,6 +104,7 @@ class SislParser:
         so_strength = self.read_so_strength(self.fdf)
         if self.read_H_soc:
             from TB2J.pauli import spinpart, chargepart
+
             HR_soc = self.read_HR_soc(self.fdf)
             HR_nosoc = HR - HR_soc * so_strength
             # move the charge part of SOC to HR_nosoc
@@ -117,12 +113,12 @@ class SislParser:
                 HR_soc[iR] = spinpart(HR_soc[iR])
             # HR_nosoc += chargepart(HR_soc)
             # HR_soc = spinpart(HR_soc)
-            print("max of real part of HR_soc", np.max(np.abs(np.real(HR_soc))))
-            print("max of imag part of HR_soc", np.max(np.abs(np.imag(HR_soc))))
-            print("max of real part of HR_nosoc", np.max(np.abs(np.real(HR_nosoc))))
-            print("max of imag part of HR_nosoc", np.max(np.abs(np.imag(HR_nosoc))))
-            print("max of real part of HR", np.max(np.abs(np.real(HR))))
-            print("max of imag part of HR", np.max(np.abs(np.imag(HR))))
+            # print("max of real part of HR_soc", np.max(np.abs(np.real(HR_soc))))
+            # print("max of imag part of HR_soc", np.max(np.abs(np.imag(HR_soc))))
+            # print("max of real part of HR_nosoc", np.max(np.abs(np.real(HR_nosoc))))
+            # print("max of imag part of HR_nosoc", np.max(np.abs(np.imag(HR_nosoc))))
+            # print("max of real part of HR", np.max(np.abs(np.real(HR))))
+            # print("max of imag part of HR", np.max(np.abs(np.imag(HR))))
         else:
             HR_soc = None
             HR_nosoc = None
@@ -364,12 +360,12 @@ class SislParser:
         HRs = np.zeros((self.nR, norb * 2, norb * 2), dtype=complex)
         # up-up:
         HRs[:, ::2, ::2] = mat[:, :, :, 0] + 1j * mat[:, :, :, 4]
+        # down-down:
+        HRs[:, 1::2, 1::2] = mat[:, :, :, 1] + 1j * mat[:, :, :, 5]
         # up-down:
         HRs[:, ::2, 1::2] = mat[:, :, :, 2] + 1j * mat[:, :, :, 3]
         # down-up:
-        HRs[:, 1::2, ::2] = mat[:, :, :, 6] + 1j * mat[:, :, :, 7]
-        # down-down:
-        HRs[:, 1::2, 1::2] = mat[:, :, :, 1] + 1j * mat[:, :, :, 5]
+        HRs[:, 1::2, ::2] = mat[:, :, :, 6] - 1j * mat[:, :, :, 7]
         return HRs
 
     def _get_HR_all(self, dense=True):
