@@ -17,7 +17,7 @@ from HamiltonIO.hamiltonian import Hamiltonian
 from HamiltonIO.model.kR_convert import R_to_onek, R_to_k
 from HamiltonIO.mathutils.lowdin import Lowdin_symmetric_orthonormalization
 from functools import lru_cache
-
+from HamiltonIO.model.occupations import Occupations
 
 class LCAOHamiltonian(Hamiltonian):
     def __init__(
@@ -223,3 +223,10 @@ class LCAOHamiltonian(Hamiltonian):
                     tuple(k), convention=convention
                 )
         return hams, Ss, evals, evecs
+
+    def get_fermi_energy(self, evals, width=0.01, kweights=None, nspin=2):
+        occ = Occupations(
+            nel=self.nel, wk=kweights, nspin=nspin
+        )
+        efermi = occ.efermi(evals)
+        return efermi
