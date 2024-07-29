@@ -10,12 +10,14 @@ import warnings
 
 from ase.dft.dos import DOS
 from scipy import integrate
+from scipy.stats import logistic
 
 # import numba
 
 # from numba import float64, int32
 
-MAX_EXP_ARGUMENT = np.log(sys.float_info.max)
+# MAX_EXP_ARGUMENT = np.log(sys.float_info.max)
+MAX_EXP_ARGUMENT = 700
 
 # @numba.vectorize(nopython=True)
 # def myfermi(e, mu, width, nspin):
@@ -29,7 +31,7 @@ MAX_EXP_ARGUMENT = np.log(sys.float_info.max)
 #    return ret
 
 
-def myfermi(e, mu, width=0.01, nspin=1):
+def myfermi2(e, mu, width=0.01, nspin=1):
     """
     the fermi function.
      .. math::
@@ -42,9 +44,13 @@ def myfermi(e, mu, width=0.01, nspin=1):
     # with warnings.catch_warnings():
     #    warnings.simplefilter("ignore")
     #    ret = np.where(x < MAX_EXP_ARGUMENT, (2.0 / nspin) / (1.0 + np.exp(x)), 0.0)
-    xp = np.where(x < MAX_EXP_ARGUMENT - 100, x, MAX_EXP_ARGUMENT - 100)
+    xp = np.where(x < MAX_EXP_ARGUMENT, x, MAX_EXP_ARGUMENT)
     ret = (2.0 / nspin) / (1.0 + np.exp(xp))
     return ret
+
+
+def myfermi(e, mu, width=0.01, nspin=1):
+    return logistic.sf((e - mu) / width) * 2.0 / nspin
 
 
 class Occupations(object):
