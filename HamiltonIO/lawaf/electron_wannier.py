@@ -31,12 +31,16 @@ class LawafHamiltonian(Hamiltonian):
         kweights=None,
         is_orthogonal =True,
     ):
+        if wannR is not None:
+            norb = wannR.shape[2]
+        else:
+            norb = HwannR.shape[1]
         super().__init__(
             _name="LaWaF Electron Wannier",
             is_orthogonal=is_orthogonal, 
             R2kfactor=2 * np.pi,
             nspin=1,
-            norb=wannR.shape[2],
+            #norb=wannR.shape[2],
         )
         self.Rlist = Rlist
         self.Rdeg = Rdeg
@@ -50,7 +54,10 @@ class LawafHamiltonian(Hamiltonian):
         self.kweights = kweights
         self._Rdict = {tuple(R): i for i, R in enumerate(self.Rlist)}
         # self.check_normalization()
-        self.nwann = self.wannR.shape[2]
+        if wannR is not None:
+            self.nwann = self.wannR.shape[2]
+        else:
+            self.nwann = self.HwannR.shape[1]
 
 
     def save_pickle(self, filename):
