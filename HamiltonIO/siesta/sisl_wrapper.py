@@ -365,7 +365,7 @@ class SislParser:
         # up-down:
         HRs[:, ::2, 1::2] = mat[:, :, :, 2] + 1j * mat[:, :, :, 3]
         # down-up:
-        HRs[:, 1::2, ::2] = mat[:, :, :, 6] - 1j * mat[:, :, :, 7]
+        HRs[:, 1::2, ::2] = mat[:, :, :, 6] + 1j * mat[:, :, :, 7]
         return HRs
 
     def _get_HR_all(self, dense=True):
