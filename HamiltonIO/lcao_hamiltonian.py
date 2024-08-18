@@ -85,6 +85,9 @@ class LCAOHamiltonian(Hamiltonian):
         else:
             return self.HR[R0]
 
+    def get_HR_soc(self, R):
+        return self.HR_soc[self.get_Ridx(R)]
+
     def get_Hk_soc(self, kpts):
         return R_to_k(kpts, self.Rlist, self.HR_soc)
 

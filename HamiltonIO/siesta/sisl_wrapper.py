@@ -58,9 +58,6 @@ class SiestaHamiltonian(LCAOHamiltonian):
         orth: bool
             whether the Hamiltonian is orthogonalized with Lowdin's method
         """
-        self._name = "SIESTA"
-        self.is_orthogonal = False
-        self.R2kfactor = 2j * np.pi
 
         super().__init__(
             HR=HR,
@@ -75,7 +72,9 @@ class SiestaHamiltonian(LCAOHamiltonian):
             nel=nel,
             orth=orth,
         )
-
+        self._name = "SIESTA"
+        self.is_orthogonal = False
+        self.R2kfactor = 2j * np.pi
 
 class SislParser:
     """
