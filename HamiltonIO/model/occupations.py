@@ -3,13 +3,9 @@ This file is stolen from the hotbit programm, with some modification.
 """
 
 import numpy as np
-from scipy.optimize import brentq
-import sys
-
-import warnings
-
 from ase.dft.dos import DOS
 from scipy import integrate
+from scipy.optimize import brentq
 from scipy.stats import logistic
 
 # import numba
@@ -85,7 +81,7 @@ class Occupations(object):
         f = self.fermi(mu)
         return np.einsum("i, ij->", self.wk, f) - self.nel
 
-    def occupy(self, e, xtol=1e-11):
+    def occupy(self, e, xtol=1e-7):
         """
         Calculate occupation numbers with given Fermi-broadening.
 
@@ -192,13 +188,13 @@ class GaussOccupations(Occupations):
         return np.exp(x) / (np.sqrt(np.pi) * self.width)
 
     def get_dos(self, npts=500):
-        eflat = self.e.flatten()
-        ind = np.argsort(eflat)
+        # eflat = self.e.flatten()
+        # ind = np.argsort(eflat)
         ##e_sorted = eflat[ind]
-        if self.nspin == 1:
-            m = 2
-        elif self.nspin == 2:
-            m = 1
+        # if self.nspin == 1:
+        #    m = 2
+        # elif self.nspin == 2:
+        #    m = 1
         # n_sorted = (self.wk * np.ones_like(self.e) * m).flatten()[ind]
         dos = np.zeros(npts)
         for w, e_n in zip(self.w_k, self.e_skn[0]):

@@ -20,13 +20,13 @@ class AbacusOrbital:
     sym: str = ""
     spin: int = 0
     element: str = ""
-    n: int = 0 
+    n: int = 0
     l: int = 0
     m: int = 0
     z: int = 0
 
 
-def parse_abacus_orbital(fname):
+def parse_abacus_orbital(fname, nspin=1):
     """
     parse the abacus orbital file
     """
@@ -44,7 +44,8 @@ def parse_abacus_orbital(fname):
             m = int(m)
             z = int(z)
             sym = f"{sym}Z{z}"
-            orbs.append(AbacusOrbital(iatom, sym, ispin, element, n, l, m, z))
+            for ispin in range(nspin):
+                orbs.append(AbacusOrbital(iatom, sym, ispin, element, n, l, m, z))
             line = myfile.readline()
     return orbs
 

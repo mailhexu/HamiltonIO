@@ -3,17 +3,16 @@
 """
 The abacus wrapper
 """
-from pathlib import Path
+
 import os
-import numpy as np
-from scipy.linalg import eigh
-from copy import deepcopy
-from TB2J.mathutils.rotate_spin import rotate_Matrix_from_z_to_spherical
+from pathlib import Path
+
 from TB2J.utils import symbol_number_list
-from HamiltonIO.lcao_hamiltonian import LCAOHamiltonian
+
 from HamiltonIO.abacus.abacus_api import read_HR_SR
 from HamiltonIO.abacus.orbital_api import parse_abacus_orbital
-from HamiltonIO.abacus.stru_api import read_abacus, read_abacus_out
+from HamiltonIO.abacus.stru_api import read_abacus
+from HamiltonIO.lcao_hamiltonian import LCAOHamiltonian
 
 
 class AbacusWrapper(LCAOHamiltonian):
@@ -57,7 +56,10 @@ class AbacusParser:
         self.read_atoms()
         self.efermi = self.read_efermi()
         self.nel = self.read_nel()
-        self.read_basis()
+        if self.spin in ["non-polarized", "collinear"]:
+            self.basis = self.read_basis()
+        elif self.spin == "noncollinear":
+            self.basis = self.read_basis(nspin=2)
 
     def read_spin(self):
         with open(str(Path(self.outpath) / "running_scf.log")) as myfile:
@@ -84,9 +86,9 @@ class AbacusParser:
             raise Exception("The STRU or Stru file cannot be found.")
         return self.atoms
 
-    def read_basis(self):
+    def read_basis(self, nspin=1):
         fname = str(Path(self.outpath) / "Orbital")
-        self.basis = parse_abacus_orbital(fname)
+        self.basis = parse_abacus_orbital(fname, nspin=nspin)
         return self.basis
 
     def read_HSR_collinear(self, binary=None):
@@ -232,18 +234,21 @@ def test_abacus_wrapper_collinear():
     # print(H.diagonal().real)
     # print(model_up.get_HR0().diagonal().real)
     print(parser.efermi)
+    return model_up, model_dn, parser, atoms, H, S, E, V
 
 
-def test_abacus_wrapper_ncl():
-    outpath = "/Users/hexu/projects/TB2J_abacus/abacus-tb2j-master/abacus_example/case_Fe/2_soc/OUT.Fe"
-
-    parser = AbacusParser(outpath=outpath, spin=None, binary=False)
-    atoms = parser.read_atoms()
-    model = parser.get_models()
-    H, S, E, V = model.HSE_k([0, 0, 0])
-    print(parser.efermi)
+# def test_abacus_wrapper_ncl():
+#    outpath = "/Users/hexu/projects/TB2J_abacus/abacus-tb2j-master/abacus_example/case_Fe/2_soc/OUT.Fe"
+#
+#    parser = AbacusParser(outpath=outpath, spin=None, binary=False)
+#    #atoms = parser.read_atoms()
+#    #model = parser.get_models()
+#    #H, S, E, V = model.HSE_k([0, 0, 0])
+#    #print(parser.efermi)
+#    retrun parser
 
 
 if __name__ == "__main__":
     # test_abacus_wrapper()
-    test_abacus_wrapper_ncl()
+    # test_abacus_wrapper_ncl()
+    pass
