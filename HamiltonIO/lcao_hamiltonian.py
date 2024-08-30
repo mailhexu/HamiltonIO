@@ -3,21 +3,18 @@
 """
 The abacus wrapper
 """
-from pathlib import Path
-import os
+
 import numpy as np
 from scipy.linalg import eigh
-from copy import deepcopy
+
+from HamiltonIO.hamiltonian import Hamiltonian
+from HamiltonIO.mathutils.lowdin import Lowdin_symmetric_orthonormalization
 from HamiltonIO.mathutils.rotate_spin import (
-    rotate_Matrix_from_z_to_spherical,
-    rotate_spinor_matrix_spkron,
     rotate_spinor_matrix_einsum_R,
 )
-from HamiltonIO.hamiltonian import Hamiltonian
-from HamiltonIO.model.kR_convert import R_to_onek, R_to_k
-from HamiltonIO.mathutils.lowdin import Lowdin_symmetric_orthonormalization
-from functools import lru_cache
+from HamiltonIO.model.kR_convert import R_to_k, R_to_onek
 from HamiltonIO.model.occupations import Occupations
+
 
 class LCAOHamiltonian(Hamiltonian):
     def __init__(
@@ -102,8 +99,6 @@ class LCAOHamiltonian(Hamiltonian):
             self.HR_nosoc = HR_full - HR_soc
         if HR_full is None:
             self.HR_full = HR_soc + HR_nosoc
-        # print(f"HR_nosoc: {self.HR_nosoc}")
-        # print(f"HR_full: {self.HR_full}")
 
     def set_so_strength(self, so_strength):
         self.so_strength = so_strength
@@ -128,7 +123,6 @@ class LCAOHamiltonian(Hamiltonian):
             rotate_spinor_matrix_einsum_R(self.HR_nosoc, theta, phi)
             + self.HR_soc * so_strength
         )
-        # HR = self.HR_nosoc + self.HR_soc * so_strength
         return HR
 
     @HR.setter
@@ -228,8 +222,6 @@ class LCAOHamiltonian(Hamiltonian):
         return hams, Ss, evals, evecs
 
     def get_fermi_energy(self, evals, width=0.01, kweights=None, nspin=2):
-        occ = Occupations(
-            nel=self.nel, wk=kweights, nspin=nspin
-        )
+        occ = Occupations(nel=self.nel, wk=kweights, nspin=nspin)
         efermi = occ.efermi(evals)
         return efermi

@@ -1,15 +1,17 @@
 import os
+from collections import defaultdict
+
 import numpy as np
 from ase.atoms import Atoms
-from collections import defaultdict
 from scipy.linalg import eigh
 from TB2J.utils import symbol_number
-from HamiltonIO.hamiltonian import Hamiltonian
-from HamiltonIO.lcao_hamiltonian import LCAOHamiltonian
-from HamiltonIO.model.kR_convert import R_to_k, k_to_R, R_to_onek
 
-# from TB2J.mathutils import Lowdin
-from HamiltonIO.mathutils.rotate_spin import rotate_Matrix_from_z_to_spherical
+from HamiltonIO.lcao_hamiltonian import LCAOHamiltonian
+from HamiltonIO.mathutils import Lowdin
+from HamiltonIO.mathutils.rotate_spin import (
+    rotate_spinor_matrix,
+)
+from HamiltonIO.model.kR_convert import R_to_onek
 from HamiltonIO.siesta.mysiesta_nc import MySiestaNC
 
 try:
@@ -76,6 +78,7 @@ class SiestaHamiltonian(LCAOHamiltonian):
         self.is_orthogonal = False
         self.R2kfactor = 2j * np.pi
 
+
 class SislParser:
     """
     Siesta Hamiltonian parser using sisl as backend
@@ -102,7 +105,7 @@ class SislParser:
 
         so_strength = self.read_so_strength(self.fdf)
         if self.read_H_soc:
-            from TB2J.pauli import spinpart, chargepart
+            from TB2J.pauli import chargepart, spinpart
 
             HR_soc = self.read_HR_soc(self.fdf)
             HR_nosoc = HR - HR_soc * so_strength
@@ -224,8 +227,11 @@ class SislParser:
                 symnum = sdict[ia]
                 try:
                     orb_names = [f"{symnum}|{x.name()}|up" for x in a.orbital]
-                except:
+                except Exception:
                     orb_names = [f"{symnum}|{x.name()}|up" for x in a.orbitals]
+                    raise Warning(
+                        "It seems you are using an acient version of sisl. Please consider updating sisl to the latest version"
+                    )
                 self.orbs += orb_names
                 self.orb_dict[ia] += orb_names
             self.norb = len(self.orbs)
@@ -295,10 +301,10 @@ class SislParser:
             self.nel = None
         return self.nel
 
-    def read_from_sisl(self, fdf, read_H_soc=False):
-        if fdf_fname is not None:
-            fname = self.get_nc_path(fdf)
-            self.ham = fdf.read_hamiltonian()
+    # def read_from_sisl(self, fdf_fname, read_H_soc=False):
+    #    if fdf_fname is not None:
+    #        fname = self.get_nc_path(fdf)
+    #        self.ham = fdf.read_hamiltonian()
 
     def read_HR_soc(self, fdf):
         # put the soc part of the hamiltonian into HR_soc
@@ -354,7 +360,7 @@ class SislParser:
 
     def convert_sisl_to_spinorham(self, mat):
         norb, norb_sc, ndspin = mat.shape
-        nbasis = norb * 2
+        # nbasis = norb * 2
         mat = mat.reshape((norb, self.nR, norb, ndspin)).transpose((1, 0, 2, 3))
         HRs = np.zeros((self.nR, norb * 2, norb * 2), dtype=complex)
         # up-up:
@@ -381,11 +387,15 @@ class SislParser:
             _HR = np.zeros_like(self.HR_soc)
             for iR, _ in enumerate(self.Rlist):
                 theta, phi = self.soc_rotation_angle
+                # _HR[iR] = (
+                #    rotate_Matrix_from_z_to_spherical(self.HR_nosoc[iR], theta, phi)
+                #    + self.HR_soc[iR]
+                # )
+                # _HR[iR] = rotate_Matrix_from_z_to_spherical(self.HR_soc[iR], theta, phi)
                 _HR[iR] = (
-                    rotate_Matrix_from_z_to_spherical(self.HR_nosoc[iR], theta, phi)
+                    rotate_spinor_matrix(self.HR_nosoc[iR], theta, phi)
                     + self.HR_soc[iR]
                 )
-                # _HR[iR] = rotate_Matrix_from_z_to_spherical(self.HR_soc[iR], theta, phi)
             return _HR
         else:
             return self.get_HR_all()
@@ -417,10 +427,10 @@ class SislParser:
         return evals, evecs
 
     def solve(self, k, convention=2):
-        if convention == 1:
-            gauge = "r"
-        elif convention == 2:
-            gauge = "R"
+        # if convention == 1:
+        #    gauge = "r"
+        # elif convention == 2:
+        #    gauge = "R"
         if self.ispin in [0, 1]:
             evals, evecs = eigh(
                 self.Hk(k, convention=convention), self.Sk(k, convention=convention)
@@ -511,12 +521,12 @@ class SislParser:
 
     def HS_and_eigen(self, kpts, convention=2):
         nkpts = len(kpts)
-        evals = np.zeros((nkpts, self.nbasis), dtype=float)
+        self.evals = np.zeros((nkpts, self.nbasis), dtype=float)
         self.nkpts = nkpts
         if not self._use_cache:
-            evecs = np.zeros((nkpts, self.nbasis, self.nbasis), dtype=complex)
-            H = np.zeros((nkpts, self.nbasis, self.nbasis), dtype=complex)
-            S = np.zeros((nkpts, self.nbasis, self.nbasis), dtype=complex)
+            self.evecs = np.zeros((nkpts, self.nbasis, self.nbasis), dtype=complex)
+            self.H = np.zeros((nkpts, self.nbasis, self.nbasis), dtype=complex)
+            self.S = np.zeros((nkpts, self.nbasis, self.nbasis), dtype=complex)
         else:
             self._prepare_cache()
 

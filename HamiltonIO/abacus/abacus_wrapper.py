@@ -205,8 +205,13 @@ class AbacusSplitSOCParser:
     def parse(self):
         nbasis, Rlist, HR_nosoc, SR = self.parser_nosoc.Read_HSR_noncollinear()
         nbasis2, Rlist2, HR2, SR2 = self.parser_soc.Read_HSR_noncollinear()
-        # print(HR[0])
         HR_soc = HR2 - HR_nosoc
+        from TB2J.pauli import chargepart, spinpart
+
+        for iR, _ in enumerate(Rlist):
+            HR_soc[iR] = spinpart(HR_soc[iR])
+            HR_nosoc[iR] += chargepart(HR_soc[iR])
+
         model = AbacusWrapper(
             HR=None,
             SR=SR,
