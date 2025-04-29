@@ -4,7 +4,7 @@ This file is stolen from the hotbit programm, with some modification.
 
 import numpy as np
 from ase.dft.dos import DOS
-from scipy import integrate
+from scipy import integrate, interpolate, optimize
 from scipy.optimize import brentq
 from scipy.stats import logistic
 
@@ -89,7 +89,6 @@ class Occupations(object):
             Note added by hexu:  With spin=2,e[k,a,sigma], it also work. only the *2 should be removed.
         @param wk: wk[:] weights for k-points
         @param width: The Fermi-broadening
-
         Returns: fermi[ind_k, ind_orb]
         """
         self.e = e
@@ -102,13 +101,14 @@ class Occupations(object):
             m = 1
         n_sorted = (self.wk[:, None, None] * np.ones_like(e) * m).flatten()[ind]
 
-        sum = n_sorted.cumsum()
-        if self.nel < sum[0]:
+        esum = n_sorted.cumsum()
+        if self.nel < esum[0]:
             ifermi = 0
-        elif self.nel > sum[-1]:
-            raise ("number of electrons larger than number of orbital*spin")
+        elif self.nel > esum[-1]:
+            # raise ("number of electrons larger than number of orbital*spin")
+            ifermi = len(e_sorted) - 1
         else:
-            ifermi = np.searchsorted(sum, self.nel)
+            ifermi = np.searchsorted(esum, self.nel)
         try:
             if ifermi == 0:
                 elo = e_sorted[0]
@@ -131,7 +131,7 @@ class Occupations(object):
             dmu = self.width
             if self.nel < 1e-3:
                 mu = min(e_sorted) - dmu * 20
-            elif self.nel - sum[-1] > -1e-3:
+            elif self.nel - esum[-1] > -1e-3:
                 mu = max(e_sorted) + dmu * 20
             else:
                 # mu = brent(
@@ -182,20 +182,17 @@ class GaussOccupations(Occupations):
     def get_mu(self):
         return self.mu
 
+    def efermi(self, e=None):
+        if self.mu is None:
+            self.occupy(e)
+        return self.mu
+
     def delta(self, energy):
         """Return a delta-function centered at 'energy'."""
         x = -(((self.e - energy) / self.width) ** 2)
         return np.exp(x) / (np.sqrt(np.pi) * self.width)
 
     def get_dos(self, npts=500):
-        # eflat = self.e.flatten()
-        # ind = np.argsort(eflat)
-        ##e_sorted = eflat[ind]
-        # if self.nspin == 1:
-        #    m = 2
-        # elif self.nspin == 2:
-        #    m = 1
-        # n_sorted = (self.wk * np.ones_like(self.e) * m).flatten()[ind]
         dos = np.zeros(npts)
         for w, e_n in zip(self.w_k, self.e_skn[0]):
             for e in e_n:
@@ -205,17 +202,29 @@ class GaussOccupations(Occupations):
         pass
 
     # @profile
-    def occupy(self, e, xtol=1e-8, guess=0.0):
+    def occupy(self, e, xtol=1e-8, guess=0.0, npts=2001):
         self.e = e
-        dos = myDOS(kweights=self.wk, eigenvalues=e, width=self.width, npts=501)
+        dos = myDOS(kweights=self.wk, eigenvalues=e, width=self.width, npts=npts)
         edos = dos.get_energies()
         d = dos.get_dos()
         idos = integrate.cumtrapz(d, edos, initial=0) - self.nel
-        # f_idos = interpolate.interp1d(edos, idos)
-        # ret = optimize.fmin(f_idos, x0=edos[400], xtol=xtol, disp=True)
-        ifermi = np.searchsorted(idos, 0.0)
-        # self.mu = ret[0]
-        self.mu = edos[ifermi]
+        # ifermi = np.searchsorted(idos, 0.0)
+        # self.mu = edos[ifermi]
+
+        # interpolate the idos and find the root
+        f_idos = interpolate.interp1d(edos, idos, kind="cubic")
+        # ret = optimize.fmin(f_idos, x0=edos[40], xtol=xtol, disp=True, )
+        # find the 0 value of f_idos
+        ret = optimize.root_scalar(
+            f_idos,
+            x0=edos[npts // 2],
+            xtol=xtol,
+            method="brentq",
+            bracket=[edos[0], edos[-1]],
+        )
+        self.mu = ret.root
+        if not ret.converged:
+            print("Warning: Fermi level not converged")
         self.f = self.fermi(self.mu)
         return self.f
 
@@ -247,7 +256,7 @@ class myDOS(DOS):
         #                        for k in range(len(self.w_k))]
         #                       for s in range(self.nspins)])
         # self.e_skn -= calc.get_fermi_level()
-        self.e_skn = np.array([eigenvalues.T])  # eigenvalues: iband, ikpt
+        self.e_skn = np.array([eigenvalues])  # eigenvalues: iband, ikpt
 
         if window is None:
             emin = None
@@ -278,6 +287,9 @@ class myDOS(DOS):
         """Return a delta-function centered at 'energy'."""
         x = -(((self.energies - energy) / self.width) ** 2)
         return np.exp(x) / (np.sqrt(np.pi) * self.width)
+        # use error function to avoid overflow
+        # x = (self.energies - energy) / self.width
+        # return 0.5 * (np.erf(x) - np.erf(-x))
 
     def get_dos(self, spin=None):
         """Get array of DOS values.
