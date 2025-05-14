@@ -287,17 +287,12 @@ class SislParser:
         return fdf.get("Spin_strength", default=1.0)
 
     def read_nel(self, fdf):
-        fname = self.get_nc_path(fdf)
-        nc = MySiestaNC(fname)
-        self.nel = nc.read_qtot()
-
         try:
             fname = self.get_nc_path(fdf)
             nc = MySiestaNC(fname)
             self.nel = nc.read_qtot()
             # self.nel = fdf.read_qtot()[0]
-        except Exception as e:
-            print(e)
+        except Exception:
             self.nel = None
         return self.nel
 
