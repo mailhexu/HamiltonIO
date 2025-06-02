@@ -1,8 +1,13 @@
-from sisl.io.siesta._help import _mat_spin_convert
-from sisl.io.sile import SileError
-from sisl.io.siesta.siesta_nc import ncSileSiesta
-from sisl.physics.hamiltonian import Hamiltonian
+try:
+    from sisl.io.siesta._help import _mat_spin_convert as _mat_siesta2sisl  # noqa: F401
+except ImportError:
+    from sisl.io.siesta._help import _mat_siesta2sisl  # noqa: F401
+
+
 from ase.units import Ry, eV
+from sisl.io.siesta.siesta_nc import ncSileSiesta
+from sisl.io.sile import SileError
+from sisl.physics.hamiltonian import Hamiltonian
 
 
 class MySiestaNC(ncSileSiesta):
@@ -10,7 +15,7 @@ class MySiestaNC(ncSileSiesta):
         """Returns a spin-orbit coupling Hamiltonian from the underlying NetCDF file"""
         try:
             H = self._read_class_spin(Hamiltonian, **kwargs)
-        except AttributeError as E:
+        except AttributeError:
             H = self._r_class_spin(Hamiltonian, **kwargs)
 
         sp = self.groups["SPARSE"]
@@ -23,7 +28,7 @@ class MySiestaNC(ncSileSiesta):
             H._csr._D[:, i] = sp.variables["H_so"][i, :] * Ry / eV
 
         # fix siesta specific notation
-        # _mat_spin_convert(H)
+        _mat_siesta2sisl(H)
         H._csr._D[:, 3] *= -1
         # H._csr._D[:, 7] *= -1
         return H.transpose(spin=False, sort=kwargs.get("sort", True))
@@ -42,7 +47,8 @@ def test_mysieta_nc():
     Qtot = sile.read_qtot()
     # Read the spin-orbit coupling Hamiltonian
     H = sile.read_soc_hamiltonian()
-    print(Qtot)
+    print(f"Total charge: {Qtot}")
+    print(H)
 
 
 if __name__ == "__main__":

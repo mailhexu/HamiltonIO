@@ -72,6 +72,21 @@ class LCAOHamiltonian(Hamiltonian):
     # def get_H0(self):
     #    return self._get_H0(*self.soc_rotation_angle)
 
+    def get_max_Hsoc_abs(self):
+        return np.max(np.abs(np.abs(self.HR_soc)))
+
+    def get_max_H0_spin_abs(self):
+        H0 = self.get_H0()
+        Hupup = H0[::2, ::2]
+        Hupdn = H0[::2, 1::2]
+        Hdnup = H0[1::2, ::2]
+        Hdndn = H0[1::2, 1::2]
+        # Hdiff = np.abs(np.abs(Hupup - Hdndn))
+        Hx = np.abs(np.abs(Hupdn + Hdnup))
+        Hy = np.abs(np.abs(Hupdn - Hdnup))
+        Hz = np.abs(np.abs(Hupup - Hdndn))
+        return np.max([Hx, Hy, Hz])
+
     def get_H0(self):
         R0 = self.get_Ridx((0, 0, 0))
         if self.split_soc:

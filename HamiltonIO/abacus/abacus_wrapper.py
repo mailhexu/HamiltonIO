@@ -209,8 +209,9 @@ class AbacusSplitSOCParser:
         from TB2J.pauli import chargepart, spinpart
 
         for iR, _ in enumerate(Rlist):
-            HR_soc[iR] = spinpart(HR_soc[iR])
-            HR_nosoc[iR] += chargepart(HR_soc[iR])
+            spart, cpart = spinpart(HR_soc[iR]), chargepart(HR_soc[iR])
+            HR_nosoc[iR] += cpart
+            HR_soc[iR] = spart
 
         model = AbacusWrapper(
             HR=None,
