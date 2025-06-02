@@ -136,7 +136,11 @@ class WannierHam(Hamiltonian):
                 has_xyz = False
                 xcart = None
                 xred = None
+
+        if nbasis % 2 != 0:
+            raise ValueError("nbasis should be even for spin-orbit model.")
         if groupby == "spin":
+            # error message if nbasis is not even.
             norb = nbasis // 2
             xtmp = copy.deepcopy(xred)
             if has_xyz:

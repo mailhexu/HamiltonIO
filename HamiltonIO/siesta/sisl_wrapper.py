@@ -7,7 +7,7 @@ from scipy.linalg import eigh
 from TB2J.utils import symbol_number
 
 from HamiltonIO.lcao_hamiltonian import LCAOHamiltonian
-from HamiltonIO.mathutils import Lowdin
+from HamiltonIO.mathutils.lowdin import Lowdin
 from HamiltonIO.mathutils.rotate_spin import (
     rotate_spinor_matrix,
 )
