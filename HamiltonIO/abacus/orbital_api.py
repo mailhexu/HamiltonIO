@@ -9,6 +9,8 @@ from pathlib import Path
 
 from TB2J.utils import symbol_number_list
 
+spin_symbols = ("up", "down")
+
 
 @dataclass
 class AbacusOrbital:
@@ -24,6 +26,13 @@ class AbacusOrbital:
     l: int = 0
     m: int = 0
     z: int = 0
+
+    @property
+    def spin_symbol(self):
+        """
+        return the spin symbol
+        """
+        return spin_symbols[self.spin]
 
 
 def parse_abacus_orbital(fname, nspin=1):

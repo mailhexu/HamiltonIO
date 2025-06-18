@@ -181,8 +181,7 @@ class AbacusParser:
         elif self.spin == "noncollinear":
             basis = []
             for b in self.basis:
-                basis.append((slist[b.iatom], b.sym, "up"))
-                basis.append((slist[b.iatom], b.sym, "down"))
+                basis.append((slist[b.iatom], b.sym, b.spin_symbol))
             return basis
 
 
