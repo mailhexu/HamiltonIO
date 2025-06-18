@@ -29,7 +29,7 @@ class MySiestaNC(ncSileSiesta):
 
         # fix siesta specific notation
         _mat_siesta2sisl(H)
-        H._csr._D[:, 3] *= -1
+        #H._csr._D[:, 3] *= -1
         # H._csr._D[:, 7] *= -1
         return H.transpose(spin=False, sort=kwargs.get("sort", True))
 
