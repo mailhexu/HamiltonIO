@@ -207,7 +207,8 @@ class GaussOccupations(Occupations):
         dos = myDOS(kweights=self.wk, eigenvalues=e, width=self.width, npts=npts)
         edos = dos.get_energies()
         d = dos.get_dos()
-        idos = integrate.cumtrapz(d, edos, initial=0) - self.nel
+        #idos = integrate.cumtrapz(d, edos, initial=0) - self.nel
+        idos = integrate.cumulative_trapezoid(d, edos, initial=0) - self.nel
         # ifermi = np.searchsorted(idos, 0.0)
         # self.mu = edos[ifermi]
 
