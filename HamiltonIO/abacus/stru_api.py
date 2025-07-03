@@ -8,6 +8,10 @@ Modified on Wed Aug 01 11:44:51 2022
 @author: Ji Yu-yang
 """
 
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
+
 import os
 import re
 import shutil
