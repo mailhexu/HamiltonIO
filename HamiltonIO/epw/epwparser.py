@@ -178,22 +178,22 @@ def read_WSVec(fname):
             Degeneracy of g-space vectors (flattened for compatibility)
     """
     from wigner import WignerData
-    
+
     # Read data using the modern WignerData class
     wigner_data = WignerData.from_file(fname)
-    
+
     # Extract data in the format expected by the old interface
     dims = wigner_data.dims
     dims2 = wigner_data.dims2
     nRk = wigner_data.nrr_k
     nRq = wigner_data.nrr_q
     nRg = wigner_data.nrr_g
-    
+
     # R vectors are already in the correct Pythonic format (nR, 3)
     Rk = wigner_data.irvec_k
     Rq = wigner_data.irvec_q
     Rg = wigner_data.irvec_g
-    
+
     # For compatibility with the old interface, we need to flatten the degeneracy arrays
     # The old format expected 1D arrays, but the new format has multi-dimensional arrays
     # We'll take the diagonal elements for the case where dims=dims2=1
@@ -207,7 +207,7 @@ def read_WSVec(fname):
         ndegen_k = wigner_data.ndegen_k[:, 0, 0]
         ndegen_q = wigner_data.ndegen_q[:, 0, 0]
         ndegen_g = wigner_data.ndegen_g[:, 0, 0]
-    
+
     return (dims, dims2, nRk, nRq, nRg, Rk, Rq, Rg, ndegen_k, ndegen_q, ndegen_g)
 
 
@@ -246,6 +246,7 @@ class Crystal:
     natom: int = 0
     nmode: int = 0
     nelect: float = 0.0
+    nbandskip: int = 0
     at: np.ndarray = field(default_factory=lambda: np.zeros(0))
     bg: np.ndarray = field(default_factory=lambda: np.zeros(0))
     omega: float = 0.0
@@ -254,7 +255,9 @@ class Crystal:
     amass: np.ndarray = field(default_factory=lambda: np.zeros(0))
     ityp: np.ndarray = field(default_factory=lambda: np.zeros(0))
     noncolin: bool = False
+    do_cutoff_2D_epw: bool = False
     w_centers: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    L: float = 0.0
 
 
 def is_text_True(s):
@@ -294,7 +297,10 @@ def read_crystal_fmt(fname="crystal.fmt"):
     with open(fname) as myfile:
         d.natom = int(next(myfile))
         d.nmode = int(next(myfile))
-        d.nelect = float(next(myfile))
+        s = next(myfile).strip().split()
+        d.nelect = float(s[0])
+        if len(s) > 1:
+            d.nbndskip = int(s[1])
         d.at = line_to_array(next(myfile), float)
         d.bg = line_to_array(next(myfile), float)
         d.omega = float(next(myfile))
@@ -303,7 +309,9 @@ def read_crystal_fmt(fname="crystal.fmt"):
         d.amass = line_to_array(next(myfile), float)
         d.ityp = line_to_array(next(myfile), int)
         d.noncolin = is_text_True(next(myfile))
+        d.do_cutoff_2D_epw = is_text_True(next(myfile))
         d.w_centers = line_to_array(next(myfile), float)
+        d.L = float(next(myfile))
     return d
 
 
@@ -565,17 +573,23 @@ class Epmat:
     Rq_dict: dict = field(default_factory=dict)
     Rg_dict: dict = field(default_factory=dict)
 
-    def read_Rvectors(self, path, fname="WSVecDeg.dat"):
-        """Read R vectors from a WS vector file.
+    def read_Rvectors(self, path, fname="wigner.fmt"):
+        """Read R vectors from a Wigner-Seitz vector file.
+
+        This method uses the modern wigner.py implementation to read
+        Wigner-Seitz vectors in the new format.
 
         Parameters
         ----------
         path : str
             Directory containing the file
         fname : str, optional
-            Name of the WS vector file, by default "WSVecDeg.dat"
+            Name of the Wigner-Seitz vector file, by default "wigner.fmt"
+            For legacy format, use "WSVecDeg.dat" and read_WSVec_deprecated()
         """
         fullfname = os.path.join(path, fname)
+
+        # Use the modern read_WSVec function which leverages wigner.py
         (
             dims,
             dims2,
@@ -589,9 +603,15 @@ class Epmat:
             self.ndegen_q,
             self.ndegen_g,
         ) = read_WSVec(fullfname)
+
+        # Create dictionaries for fast R-vector lookup
         self.Rkdict = {tuple(self.Rk[i]): i for i in range(self.nRk)}
         self.Rqdict = {tuple(self.Rq[i]): i for i in range(self.nRq)}
         self.Rgdict = {tuple(self.Rg[i]): i for i in range(self.nRg)}
+
+        # Store dimensions for reference
+        self.dims = dims
+        self.dims2 = dims2
 
     def read_Wannier_Hamiltonian(self, path, fname):
         """Read Wannier Hamiltonian from file.
@@ -644,7 +664,7 @@ class Epmat:
         (self.nwann, self.nRk, self.nmodes, self.nRq, self.nRg) = read_epwdata_fmt(
             os.path.join(path, "epwdata.fmt")
         )
-        self.read_Rvectors(path, "WSVecDeg.dat")
+        self.read_Rvectors(path, "wigner.fmt")
         if epmat_ncfile is not None:
             self.epmatfile = Dataset(os.path.join(path, epmat_ncfile), "r")
         else:
@@ -815,6 +835,99 @@ def test_read_data():
     print(dv1 - dv2)
 
 
+def cli_convert_to_netcdf():
+    """Simple CLI for converting EPW data to NetCDF format."""
+    import argparse
+    import sys
+    import os
+
+    parser = argparse.ArgumentParser(description="Convert EPW data to NetCDF format")
+    parser.add_argument(
+        "--convert-netcdf", action="store_true", help="Convert EPW data to NetCDF"
+    )
+    parser.add_argument(
+        "-p",
+        "--path",
+        default=".",
+        help="Path to EPW files (default: current directory)",
+    )
+    parser.add_argument(
+        "-n", "--prefix", default="epw", help="EPW file prefix (default: epw)"
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        default="epmat.nc",
+        help="Output NetCDF file (default: epmat.nc)",
+    )
+
+    args = parser.parse_args()
+
+    if not args.convert_netcdf:
+        parser.print_help()
+        return
+
+    print("=== EPW to NetCDF Converter ===")
+
+    # Check if directory exists
+    if not os.path.exists(args.path):
+        print(f"❌ Directory not found: {args.path}")
+        sys.exit(1)
+
+    # Check required files
+    required_files = ["epwdata.fmt", "wigner.fmt", f"{args.prefix}.epmatwp"]
+    missing = []
+
+    for file in required_files:
+        filepath = os.path.join(args.path, file)
+        if os.path.exists(filepath):
+            size = os.path.getsize(filepath)
+            print(f"✅ {file}: {size:,} bytes")
+        else:
+            print(f"❌ {file}: Not found")
+            missing.append(file)
+
+    if missing:
+        print(f"\nMissing files: {missing}")
+        sys.exit(1)
+
+    # Check if output exists
+    output_path = os.path.join(args.path, args.output)
+    if os.path.exists(output_path):
+        print(f"⚠️  Output file exists: {args.output}")
+        response = input("Overwrite? (y/N): ")
+        if response.lower() != "y":
+            sys.exit(0)
+
+    # Perform conversion
+    print(f"\n🔄 Converting {args.prefix}.epmatwp to {args.output}...")
+
+    try:
+        save_epmat_to_nc(path=args.path, prefix=args.prefix, ncfile=args.output)
+
+        if os.path.exists(output_path):
+            size = os.path.getsize(output_path)
+            print(f"✅ Conversion completed!")
+            print(f"   Output: {args.output} ({size / 1024**2:.1f} MB)")
+        else:
+            print("❌ Conversion failed - output file not created")
+            sys.exit(1)
+
+    except Exception as e:
+        print(f"❌ Conversion failed: {e}")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
-    # test()
-    test_read_data()
+    import sys
+
+    # Check if CLI arguments are provided
+    if len(sys.argv) > 1:
+        cli_convert_to_netcdf()
+    else:
+        # Default behavior - run tests
+        print("Running EPW parser tests...")
+        print("For CLI usage, run: python epwparser.py --help")
+        print()
+        # test()
+        test_read_data()
