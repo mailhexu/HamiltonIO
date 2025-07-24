@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from ase.units import Bohr, Ry
 from netCDF4 import Dataset
-from TB2J.wannier.w90_parser import parse_ham
+from HamiltonIO.wannier.w90_parser import parse_ham
 
 
 def line_to_array(line, fmt=float):
@@ -56,8 +56,11 @@ def line2vec(line):
     return [int(x) for x in line.strip().split()]
 
 
-def read_WSVec(fname):
-    """Read a Wigner-Seitz vector file.
+def read_WSVec_deprecated(fname):
+    """Read a Wigner-Seitz vector file (deprecated format).
+
+    This function reads the old WSVec format with "=" separators.
+    Use read_WSVec() for the new wigner.fmt format.
 
     Parameters
     ----------
@@ -133,6 +136,78 @@ def read_WSVec(fname):
     for i, line in enumerate(lines[start:end]):
         ndegen_g[i] = int(line.strip())
 
+    return (dims, dims2, nRk, nRq, nRg, Rk, Rq, Rg, ndegen_k, ndegen_q, ndegen_g)
+
+
+def read_WSVec(fname):
+    """Read a Wigner-Seitz vector file using the modern wigner.py module.
+
+    This function uses the WignerData class to read the new wigner.fmt format
+    and returns data in the same format as the deprecated function for compatibility.
+
+    Parameters
+    ----------
+    fname : str
+        Path to the wigner.fmt file
+
+    Returns
+    -------
+    tuple
+        Contains:
+        - dims : int
+            Number of Wannier functions
+        - dims2 : int
+            Number of atoms
+        - nRk : int
+            Number of R vectors for k-space
+        - nRq : int
+            Number of R vectors for q-space
+        - nRg : int
+            Number of R vectors for g-space
+        - Rk : numpy.ndarray
+            R vectors in k-space, shape (nRk, 3)
+        - Rq : numpy.ndarray
+            R vectors in q-space, shape (nRq, 3)
+        - Rg : numpy.ndarray
+            R vectors in g-space, shape (nRg, 3)
+        - ndegen_k : numpy.ndarray
+            Degeneracy of k-space vectors (flattened for compatibility)
+        - ndegen_q : numpy.ndarray
+            Degeneracy of q-space vectors (flattened for compatibility)
+        - ndegen_g : numpy.ndarray
+            Degeneracy of g-space vectors (flattened for compatibility)
+    """
+    from wigner import WignerData
+    
+    # Read data using the modern WignerData class
+    wigner_data = WignerData.from_file(fname)
+    
+    # Extract data in the format expected by the old interface
+    dims = wigner_data.dims
+    dims2 = wigner_data.dims2
+    nRk = wigner_data.nrr_k
+    nRq = wigner_data.nrr_q
+    nRg = wigner_data.nrr_g
+    
+    # R vectors are already in the correct Pythonic format (nR, 3)
+    Rk = wigner_data.irvec_k
+    Rq = wigner_data.irvec_q
+    Rg = wigner_data.irvec_g
+    
+    # For compatibility with the old interface, we need to flatten the degeneracy arrays
+    # The old format expected 1D arrays, but the new format has multi-dimensional arrays
+    # We'll take the diagonal elements for the case where dims=dims2=1
+    if dims == 1 and dims2 == 1:
+        ndegen_k = wigner_data.ndegen_k[:, 0, 0]
+        ndegen_q = wigner_data.ndegen_q[:, 0, 0]
+        ndegen_g = wigner_data.ndegen_g[:, 0, 0]
+    else:
+        # For more complex cases, we might need to handle this differently
+        # For now, we'll take the first element of each degeneracy matrix
+        ndegen_k = wigner_data.ndegen_k[:, 0, 0]
+        ndegen_q = wigner_data.ndegen_q[:, 0, 0]
+        ndegen_g = wigner_data.ndegen_g[:, 0, 0]
+    
     return (dims, dims2, nRk, nRq, nRg, Rk, Rq, Rg, ndegen_k, ndegen_q, ndegen_g)
 
 

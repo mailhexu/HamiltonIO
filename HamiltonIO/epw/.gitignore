@@ -2,6 +2,9 @@
 *.f90
 *.F90
 
+# test files:
+test
+
 # Python cache
 __pycache__/
 *.py[cod]

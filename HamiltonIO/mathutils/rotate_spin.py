@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse import eye_array, kron
-from TB2J.pauli import gather_pauli_blocks, pauli_block_all
+from HamiltonIO.mathutils.pauli import gather_pauli_blocks, pauli_block_all
 
 
 def rotate_Matrix_from_z_to_axis(M, axis, normalize=True):

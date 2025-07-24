@@ -243,3 +243,22 @@ class WignerData:
             f"  Phonons (q): {self.nrr_q} WS vectors\n"
             f"  Electron-phonon (g): {self.nrr_g} WS vectors"
         )
+
+    def find_origin_indices(self) -> Tuple[int, int, int]:
+        """
+        Find the indices of the origin vectors (0,0,0) for k, q, and g.
+
+        Returns:
+            Tuple of (k_origin_idx, q_origin_idx, g_origin_idx)
+            Returns -1 if origin vector not found
+        """
+        k_origin = np.where(np.all(self.irvec_k == 0, axis=1))[0]
+        q_origin = np.where(np.all(self.irvec_q == 0, axis=1))[0]
+        g_origin = np.where(np.all(self.irvec_g == 0, axis=1))[0]
+
+        return (
+            k_origin[0] if len(k_origin) > 0 else -1,
+            q_origin[0] if len(q_origin) > 0 else -1,
+            g_origin[0] if len(g_origin) > 0 else -1,
+        )
+

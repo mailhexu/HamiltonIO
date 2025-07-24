@@ -4,7 +4,7 @@ from collections import defaultdict
 import numpy as np
 from ase.atoms import Atoms
 from scipy.linalg import eigh
-from TB2J.utils import symbol_number
+from HamiltonIO.utils import symbol_number
 
 from HamiltonIO.lcao_hamiltonian import LCAOHamiltonian
 from HamiltonIO.mathutils.lowdin import Lowdin
@@ -105,7 +105,7 @@ class SislParser:
 
         so_strength = self.read_so_strength(self.fdf)
         if self.read_H_soc:
-            from TB2J.pauli import chargepart, spinpart
+            from HamiltonIO.mathutils.pauli import chargepart, spinpart
 
             HR_soc = self.read_HR_soc(self.fdf)
             HR_nosoc = HR - HR_soc * so_strength
