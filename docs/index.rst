@@ -16,8 +16,11 @@ Welcome to HamiltonIO's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   src/install.rst
-   src/development.md
+   src/install.md
+   wannier
+   siesta
+   abacus
+   epw
    src/ReleaseNotes.md
 
 
