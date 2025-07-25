@@ -177,7 +177,7 @@ def read_WSVec(fname):
         - ndegen_g : numpy.ndarray
             Degeneracy of g-space vectors (flattened for compatibility)
     """
-    from wigner import WignerData
+    from HamiltonIO.epw.wigner import WignerData
 
     # Read data using the modern WignerData class
     wigner_data = WignerData.from_file(fname)
