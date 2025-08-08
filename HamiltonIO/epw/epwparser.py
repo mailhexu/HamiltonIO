@@ -19,7 +19,8 @@ from dataclasses import dataclass, field
 import numpy as np
 from ase.units import Bohr, Ry
 from netCDF4 import Dataset
-from TB2J.wannier.w90_parser import parse_ham
+
+from HamiltonIO.wannier.w90_parser import parse_ham
 
 
 def line_to_array(line, fmt=float):
