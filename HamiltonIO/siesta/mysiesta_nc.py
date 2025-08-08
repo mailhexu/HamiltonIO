@@ -13,10 +13,12 @@ from sisl.physics.hamiltonian import Hamiltonian
 class MySiestaNC(ncSileSiesta):
     def read_soc_hamiltonian(self, **kwargs) -> Hamiltonian:
         """Returns a spin-orbit coupling Hamiltonian from the underlying NetCDF file"""
+        #H = self._read_class_spin(Hamiltonian, **kwargs)
         try:
-            H = self._read_class_spin(Hamiltonian, **kwargs)
-        except AttributeError:
+            #H = #self._read_class_spin(Hamiltonian, **kwargs)
             H = self._r_class_spin(Hamiltonian, **kwargs)
+        except AttributeError:
+            H = self.read_hamiltonian()
 
         sp = self.groups["SPARSE"]
         if sp.variables["H_so"].unit != "Ry":

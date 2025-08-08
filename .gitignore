@@ -3,6 +3,11 @@ doc/refs/*.pdf
 
 *.swp
 
+# AI IDE files
+.kiro
+.cline
+
+
 # Latex 
 *.aux
 

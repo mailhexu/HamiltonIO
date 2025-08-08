@@ -7,7 +7,7 @@ Parser for the abacus orbital file
 from dataclasses import dataclass
 from pathlib import Path
 
-from TB2J.utils import symbol_number_list
+from HamiltonIO.utils import symbol_number_list
 
 spin_symbols = ("up", "down")
 

@@ -7,7 +7,7 @@ The abacus wrapper
 import os
 from pathlib import Path
 
-from TB2J.utils import symbol_number_list
+from HamiltonIO.utils import symbol_number_list
 
 from HamiltonIO.abacus.abacus_api import read_HR_SR
 from HamiltonIO.abacus.orbital_api import parse_abacus_orbital
@@ -205,7 +205,7 @@ class AbacusSplitSOCParser:
         nbasis, Rlist, HR_nosoc, SR = self.parser_nosoc.Read_HSR_noncollinear()
         nbasis2, Rlist2, HR2, SR2 = self.parser_soc.Read_HSR_noncollinear()
         HR_soc = HR2 - HR_nosoc
-        from TB2J.pauli import chargepart, spinpart
+        from HamiltonIO.mathutils.pauli import chargepart, spinpart
 
         for iR, _ in enumerate(Rlist):
             spart, cpart = spinpart(HR_soc[iR]), chargepart(HR_soc[iR])
