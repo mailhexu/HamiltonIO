@@ -81,23 +81,79 @@ save_epmat_to_nc(path="./", prefix="material", ncfile="epmat.nc")
 
 ## Command Line Tools
 
-### EPW to NetCDF Converter
+### EPW CLI Tool
+
+HamiltonIO provides a dedicated command-line interface for EPW file operations:
+
+```bash
+hamiltonio-epw epw_to_nc --path /path/to/epw --prefix material --output epmat.nc
+```
+
+**Installation:**
+The CLI tool is automatically installed when you install HamiltonIO:
+
+```bash
+pip install hamiltonio
+hamiltonio-epw --help
+```
+
+**EPW to NetCDF Converter:**
 
 Convert EPW binary files to NetCDF format for easier analysis:
 
 ```bash
-python -m HamiltonIO.epw.epwparser --convert-netcdf -p /path/to/epw -n material -o epmat.nc
+# Basic conversion
+hamiltonio-epw epw_to_nc --path /path/to/epw --prefix material --output epmat.nc
+
+# Using short options
+hamiltonio-epw epw_to_nc -p ./epw_data -n my_material -o output.nc
+
+# Force overwrite existing output file
+hamiltonio-epw epw_to_nc --path ./ --prefix test --output epmat.nc --force
+
+# Dry run - check files without converting
+hamiltonio-epw epw_to_nc --path ./ --prefix test --dry-run
 ```
 
 **Options:**
-- `-p, --path`: Directory containing EPW files
-- `-n, --prefix`: EPW file prefix
-- `-o, --output`: Output NetCDF filename
+- `-p, --path`: Directory containing EPW files (default: current directory)
+- `-n, --prefix`: EPW file prefix (default: epw)
+- `-o, --output`: Output NetCDF filename (default: epmat.nc)
+- `--force`: Overwrite existing output file without prompting
+- `--dry-run`: Check files and show conversion info without performing conversion
+- `--version`: Show version information
+- `--help`: Show help message and usage examples
 
 **Required Files:**
+The converter will validate that the following files are present:
 - `epwdata.fmt`: Basic dimensions
 - `wigner.fmt`: Wigner-Seitz vectors
 - `{prefix}.epmatwp`: EPW matrix elements
+
+**Examples:**
+
+```bash
+# Convert material data in current directory
+hamiltonio-epw epw_to_nc --prefix graphene --output graphene_epmat.nc
+
+# Process data in specific directory
+hamiltonio-epw epw_to_nc --path /home/user/simulation/epw_results --prefix Si --output si_epmat.nc
+
+# Check if files are valid before conversion
+hamiltonio-epw epw_to_nc --path ./test_data --prefix test --dry-run
+
+# Batch processing (shell loop)
+for prefix in material1 material2 material3; do
+    hamiltonio-epw epw_to_nc --path ./data --prefix $prefix --output "${prefix}_epmat.nc" --force
+done
+```
+
+**Error Handling:**
+The CLI tool provides clear error messages for common issues:
+- Missing required files
+- Invalid directory paths
+- Permission errors
+- File format validation failures
 
 ## Data Structures
 

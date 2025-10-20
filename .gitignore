@@ -6,6 +6,12 @@ doc/refs/*.pdf
 # AI IDE files
 .kiro
 .cline
+.openspec
+.claude
+.github
+AGENTS.MD
+CLAUDE.MD
+
 
 
 # Latex 
