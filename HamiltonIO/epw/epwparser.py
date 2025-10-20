@@ -920,15 +920,14 @@ def cli_convert_to_netcdf():
 
 
 if __name__ == "__main__":
-    import sys
-
+    cli_convert_to_netcdf()
     # Check if CLI arguments are provided
-    if len(sys.argv) > 1:
-        cli_convert_to_netcdf()
-    else:
-        # Default behavior - run tests
-        print("Running EPW parser tests...")
-        print("For CLI usage, run: python epwparser.py --help")
-        print()
-        # test()
-        test_read_data()
+    # if len(sys.argv) > 1:
+    #    cli_convert_to_netcdf()
+    # else:
+    #    # Default behavior - run tests
+    #    print("Running EPW parser tests...")
+    #    print("For CLI usage, run: python epwparser.py --help")
+    #    print()
+    #    # test()
+    #    test_read_data()

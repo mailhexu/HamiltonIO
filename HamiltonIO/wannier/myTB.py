@@ -3,19 +3,84 @@ import os
 from collections import defaultdict
 
 import numpy as np
+
+# from tbmodels import Model
 from ase.atoms import Atoms
 from scipy.io import netcdf_file
 from scipy.linalg import eigh
 from scipy.sparse import csr_matrix
 
-from HamiltonIO.hamiltonian import Hamiltonian
-
-from .myTB import MyTB
 from .utils import auto_assign_basis_name
 from .w90_parser import parse_atoms, parse_ham, parse_tb, parse_xyz
 
 
-class WannierHam(Hamiltonian):
+class AbstractTB:
+    def __init__(self, R2kfactor, nspin, norb):
+        #: :math:`\alpha` used in :math:`H(k)=\sum_R  H(R) \exp( \alpha k \cdot R)`,
+        #: Should be :math:`2\pi i` or :math:`-2\pi i`
+        self.is_orthogonal = True
+        self.R2kfactor = R2kfactor
+
+        #: number of spin. 1 for collinear, 2 for spinor.
+        self.nspin = nspin
+
+        #:number of orbitals. Each orbital can have two spins.
+        self.norb = norb
+
+        #: nbasis=nspin*norb
+        self.nbasis = nspin * norb
+
+        #: The array of cartesian coordinate of all basis. shape:nbasis,3
+        self.xcart = None
+
+        #: The array of cartesian coordinate of all basis. shape:nbasis,3
+        self.xred = None
+
+        #: The order of the spinor basis.
+        #: 1: orb1_up, orb2_up,  ... orb1_down, orb2_down,...
+        #: 2: orb1_up, orb1_down, orb2_up, orb2_down,...
+
+        self._name = None
+
+    @property
+    def name(self):
+        return self._name
+
+    def get_hamR(self, R):
+        """
+        get the Hamiltonian H(R), array of shape (nbasis, nbasis)
+        """
+        raise NotImplementedError()
+
+    def get_orbs(self):
+        """
+        returns the orbitals.
+        """
+        raise NotImplementedError()
+
+    def HSE(self, kpt):
+        raise NotImplementedError()
+
+    def HS_and_eigen(self, kpts):
+        """
+        get Hamiltonian, overlap matrices, eigenvalues, eigen vectors for all kpoints.
+
+        :param:
+
+        * kpts: list of k points.
+
+        :returns:
+
+        * H, S, eigenvalues, eigenvectors for all kpoints
+        * H: complex array of shape (nkpts, nbasis, nbasis)
+        * S: complex array of shape (nkpts, nbasis, nbasis). S=None if the basis set is orthonormal.
+        * evals: complex array of shape (nkpts, nbands)
+        * evecs: complex array of shape (nkpts, nbasis, nbands)
+        """
+        raise NotImplementedError()
+
+
+class MyTB(AbstractTB):
     def __init__(
         self,
         nbasis,
@@ -61,7 +126,6 @@ class WannierHam(Hamiltonian):
         self.atoms = None
         self.R2kfactor = 2.0j * np.pi
         self.k2Rfactor = -2.0j * np.pi
-        self.is_siesta = False
         self.is_orthogonal = True
         self._name = "Wannier"
 
@@ -119,48 +183,33 @@ class WannierHam(Hamiltonian):
         :param path: path
         :param prefix: prefix to the wannier files, often wannier90, or wannier90_up, or wannier90_dn for vasp.
         """
-        if atoms is None:
-            atoms = parse_atoms(os.path.join(path, prefix + ".win"))
-        cell = atoms.get_cell()
+
         tb_fname = os.path.join(path, prefix + "_tb.dat")
         hr_fname = os.path.join(path, prefix + "_hr.dat")
         if os.path.exists(tb_fname):
             xcart, nbasis, data, R_degens = parse_tb(fname=tb_fname)
         else:
             nbasis, data, R_degens = parse_ham(fname=hr_fname)
-            xyz_fname = os.path.join(path, prefix + ".xyz")
-            if os.path.exists(xyz_fname):
-                has_xyz = True
-                xcart, _, _ = parse_xyz(fname=xyz_fname)
-                xred = cell.scaled_positions(xcart)
-            else:
-                has_xyz = False
-                xcart = None
-                xred = None
+            xcart, _, _ = parse_xyz(fname=os.path.join(path, prefix + "_centres.xyz"))
 
-        if nbasis % 2 != 0:
-            raise ValueError("nbasis should be even for spin-orbit model.")
+        if atoms is None:
+            atoms = parse_atoms(os.path.join(path, prefix + ".win"))
+        cell = atoms.get_cell()
+        xred = cell.scaled_positions(xcart)
         if groupby == "spin":
-            # error message if nbasis is not even.
             norb = nbasis // 2
             xtmp = copy.deepcopy(xred)
-            if has_xyz:
-                xred[::2] = xtmp[:norb]
-                xred[1::2] = xtmp[norb:]
+            xred[::2] = xtmp[:norb]
+            xred[1::2] = xtmp[norb:]
             for key, val in data.items():
                 dtmp = copy.deepcopy(val)
                 data[key][::2, ::2] = dtmp[:norb, :norb]
                 data[key][::2, 1::2] = dtmp[:norb, norb:]
                 data[key][1::2, ::2] = dtmp[norb:, :norb]
                 data[key][1::2, 1::2] = dtmp[norb:, norb:]
-        if has_xyz:
-            ind, positions = auto_assign_basis_name(xred, atoms)
-        m = WannierHam(nbasis=nbasis, data=data, positions=xred, R_degens=R_degens)
-        # print(m.onsite_energies)
-        if has_xyz:
-            nm = m.shift_position(positions)
-        else:
-            nm = m
+        ind, positions = auto_assign_basis_name(xred, atoms)
+        m = MyTB(nbasis=nbasis, data=data, positions=xred, R_degens=R_degens)
+        nm = m.shift_position(positions)
         nm.set_atoms(atoms)
         return nm
 
@@ -203,7 +252,7 @@ class WannierHam(Hamiltonian):
         Hk = np.zeros((self.nbasis, self.nbasis), dtype="complex")
         if convention == 2:
             for iR, (R, mat) in enumerate(self.data.items()):
-                phase = np.exp(self.R2kfactor * np.dot(k, R)) / self.R_degens[iR]
+                phase = np.exp(self.R2kfactor * np.dot(k, R))  # /self.R_degens[iR]
                 H = mat * phase
                 Hk += H + H.conjugate().T
         elif convention == 1:
@@ -227,10 +276,6 @@ class WannierHam(Hamiltonian):
         S = None
         evals, evecs = eigh(H)
         return H, S, evals, evecs
-
-    def solve_all(self, kpts, convention=2):
-        _, _, evals, evecs = self.HS_and_eigen(kpts, convention=convention)
-        return evals, evecs
 
     def HS_and_eigen(self, kpts, convention=2):
         """

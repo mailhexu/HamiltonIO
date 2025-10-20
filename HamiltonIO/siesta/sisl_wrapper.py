@@ -4,15 +4,15 @@ from collections import defaultdict
 import numpy as np
 from ase.atoms import Atoms
 from scipy.linalg import eigh
-from HamiltonIO.utils import symbol_number
 
 from HamiltonIO.lcao_hamiltonian import LCAOHamiltonian
-from HamiltonIO.mathutils.lowdin import Lowdin
+from HamiltonIO.mathutils.lowdin import Lowdin, Lowdin_symmetric_orthonormalization
 from HamiltonIO.mathutils.rotate_spin import (
     rotate_spinor_matrix,
 )
 from HamiltonIO.model.kR_convert import R_to_onek
 from HamiltonIO.siesta.mysiesta_nc import MySiestaNC
+from HamiltonIO.utils import symbol_number
 
 try:
     import sisl
@@ -35,6 +35,8 @@ class SiestaHamiltonian(LCAOHamiltonian):
         HR_soc=None,
         nel=None,
         orth=False,
+        sisl_hamiltonian=None,
+        spin_channel=None,
     ):
         """
         Hamiltonian object for Siesta
@@ -59,6 +61,10 @@ class SiestaHamiltonian(LCAOHamiltonian):
             Real space Hamiltonian with SOC
         orth: bool
             whether the Hamiltonian is orthogonalized with Lowdin's method
+        sisl_hamiltonian: sisl.Hamiltonian
+            sisl Hamiltonian object for direct k-space calculations
+        spin_channel: int
+            Spin channel (0 for up, 1 for down) for spin-polarized calculations
         """
 
         super().__init__(
@@ -77,6 +83,87 @@ class SiestaHamiltonian(LCAOHamiltonian):
         self._name = "SIESTA"
         self.is_orthogonal = False
         self.R2kfactor = 2j * np.pi
+        self.sisl_hamiltonian = sisl_hamiltonian
+        self.spin_channel = spin_channel
+
+    def gen_ham(self, k, convention=2):
+        """
+        Generate Hamiltonian and overlap matrices at k-point using sisl.
+        This method overrides the parent LCAOHamiltonian.gen_ham to use sisl for
+        Hk and Sk generation instead of the internal implementation.
+
+        Args:
+            k (array-like): k-point coordinates
+            convention (int): Convention type (1 or 2). We use convention 2.
+
+        Returns:
+            tuple: (Hk, Sk) Hamiltonian and overlap matrices at k-point
+        """
+
+        if convention != 2:
+            raise NotImplementedError(
+                "Only convention 2 is implemented for sisl wrapper."
+            )
+
+        # Convert k to numpy array if it isn't already
+        k = np.array(k, dtype=float)
+
+        # Check if we have a valid sisl hamiltonian
+        if self.sisl_hamiltonian is None:
+            # Fall back to parent implementation
+            return super().gen_ham(k, convention=convention)
+
+        try:
+            # Use sisl to calculate Hk and Sk
+            print("Using sisl to generate Hk and Sk")
+            # For spin-polarized systems, use the spin_channel parameter
+            if self.spin_channel is not None:
+                # Spin-polarized case: use specific spin channel (0=up, 1=down)
+                Hk = self.sisl_hamiltonian.Hk(
+                    k=k, spin=self.spin_channel, gauge="R", format="dense"
+                )
+                Sk = self.sisl_hamiltonian.Sk(k=k, gauge="R", format="dense")
+            else:
+                # Non-polarized or non-collinear case
+                Hk = self.sisl_hamiltonian.Hk(k=k, gauge="R", format="dense")
+                Sk = self.sisl_hamiltonian.Sk(k=k, gauge="R", format="dense")
+
+            # Handle different spin cases to match LCAOHamiltonian behavior
+            # Note: In the current implementation, SiestaHamiltonian instances are created
+            # with nspin=1 even for spin-polarized systems, with separate models for up/down
+            if self.nspin == 1:  # Non-polarized or single spin channel
+                # For this case, sisl returns (no, no), which is compatible with LCAOHamiltonian
+                pass
+            elif (
+                self.nspin == 2
+            ):  # Spin-polarized case (if implemented as single model)
+                # This case is currently not used in the parser (parser creates separate models)
+                # But we handle it for completeness
+                if (
+                    hasattr(self.sisl_hamiltonian, "spin")
+                    and self.sisl_hamiltonian.spin.is_colinear
+                ):
+                    # For collinear spin, we might need to handle spin explicitly
+                    # For now, use parent implementation as fallback
+                    return super().gen_ham(k, convention=convention)
+            elif self.nspin == 4:  # Non-collinear spin case (including SOC)
+                # sisl returns (no*2, no*2) format for non-collinear/SOC
+                # This should already be compatible with LCAOHamiltonian
+                pass
+
+            # Apply orthogonalization if needed
+            if self.orth:
+                Hk = Lowdin_symmetric_orthonormalization(Hk, Sk)
+                Sk = None
+
+            return Hk, Sk
+
+        except Exception as e:
+            # If sisl fails, fall back to parent implementation
+            print(
+                f"Warning: sisl Hk/Sk generation failed ({e}), falling back to internal implementation"
+            )
+            return super().gen_ham(k, convention=convention)
 
 
 class SislParser:
@@ -137,6 +224,7 @@ class SislParser:
                 nel=nel,
                 atoms=self.atoms,
                 orth=self.orth,
+                sisl_hamiltonian=self.ham,
             )
             return model
         else:
@@ -152,6 +240,8 @@ class SislParser:
                 nel=nel,
                 atoms=self.atoms,
                 orth=self.orth,
+                sisl_hamiltonian=self.ham,
+                spin_channel=0,  # Spin up channel
             )
             model_down = SiestaHamiltonian(
                 HR=HR[1],
@@ -165,6 +255,8 @@ class SislParser:
                 nel=nel,
                 atoms=self.atoms,
                 orth=self.orth,
+                sisl_hamiltonian=self.ham,
+                spin_channel=1,  # Spin down channel
             )
             model = (model_up, model_down)
             if self.ispin is not None:
