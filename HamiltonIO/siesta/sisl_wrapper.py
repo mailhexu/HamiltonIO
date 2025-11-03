@@ -85,6 +85,7 @@ class SiestaHamiltonian(LCAOHamiltonian):
         self.R2kfactor = 2j * np.pi
         self.sisl_hamiltonian = sisl_hamiltonian
         self.spin_channel = spin_channel
+        self.use_sisl_implementation_hk_eigen = False
 
     def gen_ham(self, k, convention=2):
         """
@@ -109,13 +110,12 @@ class SiestaHamiltonian(LCAOHamiltonian):
         k = np.array(k, dtype=float)
 
         # Check if we have a valid sisl hamiltonian
-        if self.sisl_hamiltonian is None:
+        if self.sisl_hamiltonian is None or not self.use_sisl_implementation_hk_eigen:
             # Fall back to parent implementation
             return super().gen_ham(k, convention=convention)
 
         try:
             # Use sisl to calculate Hk and Sk
-            print("Using sisl to generate Hk and Sk")
             # For spin-polarized systems, use the spin_channel parameter
             if self.spin_channel is not None:
                 # Spin-polarized case: use specific spin channel (0=up, 1=down)
@@ -158,11 +158,8 @@ class SiestaHamiltonian(LCAOHamiltonian):
 
             return Hk, Sk
 
-        except Exception as e:
+        except Exception:
             # If sisl fails, fall back to parent implementation
-            print(
-                f"Warning: sisl Hk/Sk generation failed ({e}), falling back to internal implementation"
-            )
             return super().gen_ham(k, convention=convention)
 
 
