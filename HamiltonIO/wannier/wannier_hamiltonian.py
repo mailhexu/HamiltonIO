@@ -3,14 +3,12 @@ import os
 from collections import defaultdict
 
 import numpy as np
-from ase.atoms import Atoms
 from scipy.io import netcdf_file
 from scipy.linalg import eigh
 from scipy.sparse import csr_matrix
 
 from HamiltonIO.hamiltonian import Hamiltonian
 
-from .myTB import MyTB
 from .utils import auto_assign_basis_name
 from .w90_parser import parse_atoms, parse_ham, parse_tb, parse_xyz
 
@@ -36,7 +34,6 @@ class WannierHam(Hamiltonian):
         :param ndim: number of dimensions.
         :param nspin: number of spins.
         """
-
         if data is not None:
             self.data = data
         else:
@@ -126,20 +123,17 @@ class WannierHam(Hamiltonian):
         hr_fname = os.path.join(path, prefix + "_hr.dat")
         if os.path.exists(tb_fname):
             xcart, nbasis, data, R_degens = parse_tb(fname=tb_fname)
+            xred = cell.scaled_positions(xcart)
         else:
             nbasis, data, R_degens = parse_ham(fname=hr_fname)
-            xyz_fname = os.path.join(path, prefix + ".xyz")
+            xyz_fname = os.path.join(path, prefix + "_centres.xyz")
             if os.path.exists(xyz_fname):
                 has_xyz = True
                 xcart, _, _ = parse_xyz(fname=xyz_fname)
                 xred = cell.scaled_positions(xcart)
             else:
-                has_xyz = False
-                xcart = None
-                xred = None
+                raise FileNotFoundError(f"The file {xyz_fname} does not exist.")
 
-        if nbasis % 2 != 0:
-            raise ValueError("nbasis should be even for spin-orbit model.")
         if groupby == "spin":
             # error message if nbasis is not even.
             norb = nbasis // 2
@@ -156,7 +150,6 @@ class WannierHam(Hamiltonian):
         if has_xyz:
             ind, positions = auto_assign_basis_name(xred, atoms)
         m = WannierHam(nbasis=nbasis, data=data, positions=xred, R_degens=R_degens)
-        # print(m.onsite_energies)
         if has_xyz:
             nm = m.shift_position(positions)
         else:
@@ -183,7 +176,7 @@ class WannierHam(Hamiltonian):
                 # H_mnR[R] -= np.diag(np.diag(val) / 2.0)
             else:
                 H_mnR[R] = val / 2.0
-        m = MyTB(nbasis, data=H_mnR, nspin=nspin, ndim=ndim, positions=positions)
+        m = WannierHam(nbasis, data=H_mnR, nspin=nspin, ndim=ndim, positions=positions)
         m.atoms = atoms
         return m
 
@@ -317,11 +310,11 @@ class WannierHam(Hamiltonian):
         make all the R positive.
         t(i, j, R) = t(j, i, -R).conj() if R is negative.
         """
-        new_MyTB = MyTB(self.nbasis, sparse=self.sparse)
+        new_WannierHam = WannierHam(self.nbasis, sparse=self.sparse)
         for R, mat in self.data:
             newR, newmat = self._positive_R_mat(R, mat)
-            new_MyTB[newR] += newmat
-        return new_MyTB
+            new_WannierHam[newR] += newmat
+        return new_WannierHam
 
     def shift_position(self, rpos):
         """
@@ -335,7 +328,9 @@ class WannierHam(Hamiltonian):
         newpos = copy.deepcopy(pos)
         for i in range(self.nbasis):
             newpos[i] = pos[i] - shift[i]
-        d = MyTB(self.nbasis, ndim=self.ndim, nspin=self.nspin, R_degens=self.R_degens)
+        d = WannierHam(
+            self.nbasis, ndim=self.ndim, nspin=self.nspin, R_degens=self.R_degens
+        )
         d._positions = newpos
 
         for R, v in self.data.items():
@@ -395,40 +390,11 @@ class WannierHam(Hamiltonian):
         root.close()
 
     @staticmethod
-    def load_MyTB(fname):
-        """
-        Load from a netcdf file.
-        :param fname: netcdf filename.
-        :Returns: tight binding model.
-        """
-        # from netCDF4 import Dataset
-        root = netcdf_file(fname, "r", mmap=False)
-        nbasis = root.dimensions["nbasis"]
-        nspin = root.dimensions["nspin"]
-        ndim = root.dimensions["ndim"]
-        _natom = root.dimensions["natom"]
-        Rlist = root.variables["R"][:]
-        mdata_real = root.variables["data_real"][:]
-        mdata_imag = root.variables["data_imag"][:]
-        positions = root.variables["positions"][:]
-
-        atom_numbers = root.variables["atom_numbers"][:]
-        atom_xred = root.variables["atom_xred"][:]
-        atom_cell = root.variables["atom_cell"][:]
-        atoms = Atoms(numbers=atom_numbers, scaled_positions=atom_xred, cell=atom_cell)
-        m = MyTB(nbasis, nspin=nspin, ndim=ndim, positions=positions)
-        m.atoms = copy.deepcopy(atoms)
-        root.close()
-        for iR, R in enumerate(Rlist):
-            m.data[tuple(R)] = mdata_real[iR] + mdata_imag[iR] * 1j
-        return m
-
-    @staticmethod
     def from_tbmodel(model):
         """
         translate from a tbmodel type tight binding model
         """
-        ret = MyTB(nbasis=model.size)
+        ret = WannierHam(nbasis=model.size)
         for R, v in model.hop.items():
             ret.data[R] = v
         ret._positions = np.reshape(model.pos, (model.size, model.dim))
@@ -443,7 +409,7 @@ class WannierHam(Hamiltonian):
         from tbmodels import Model
 
         m = Model.from_hdf5_file(fname)
-        ret = MyTB(nbasis=m.size)
+        ret = WannierHam(nbasis=m.size)
         for R, v in m.hop.items():
             ret.data[R] = v
         ret.positions = np.reshape(m.pos, (m.size, m.ndim))
@@ -455,7 +421,7 @@ class WannierHam(Hamiltonian):
         order =1 : orb1_up, orb1_dn, orb2_up, orb2_dn...
         order =2 : orb1_up, orb2_up, ... orb1_dn, orb2_dn...
         """
-        ret = MyTB(self.nbasis * 2)
+        ret = WannierHam(self.nbasis * 2)
         if self.positions is None:
             ret.positions = None
         else:
@@ -480,7 +446,7 @@ def merge_tbmodels_spin(tbmodel_up, tbmodel_dn):
     """
     Merge a spin up and spin down model to one spinor model.
     """
-    tbmodel = MyTB(
+    tbmodel = WannierHam(
         nbasis=tbmodel_up.nbasis * 2,
         data=None,
         positions=np.vstack([tbmodel_up.positions, tbmodel_dn.positions]),
