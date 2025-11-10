@@ -737,6 +737,188 @@ class Epmat:
             g[tuple(Rk)] = self.get_epmat_Rv_from_index(imode, iRg, iRk)
         return g
 
+    def distance_resolved_couplings_Rk(self, imode, cell, use_absolute=True):
+        """Return electron-phonon couplings annotated with Rk-based distances.
+
+        This method extracts g(imode, Rg, Rk, i, j) matrix elements and computes
+        the distance between electron Wannier functions (WF to WF distance).
+
+        Parameters
+        ----------
+        imode : int
+            Phonon mode index
+        cell : array-like
+            3x3 lattice vectors in Angstrom (real-space lattice)
+        use_absolute : bool, optional
+            If True (default), return scalar distance norm.
+            If False, return 3D distance vector.
+
+        Returns
+        -------
+        list[dict]
+            Each item contains:
+                - "imode": phonon mode index
+                - "Rg": tuple of Rg vector
+                - "Rk": tuple of Rk vector
+                - "i": Wannier function index i
+                - "j": Wannier function index j
+                - "distance": distance between WF i and WF j+Rk
+                - "coupling": complex coupling matrix element g
+        """
+        # Reshape w_centers to (nwann, 3) if needed
+        w_centers = np.asarray(self.crystal.w_centers).reshape(self.nwann, 3)
+        cell = np.asarray(cell)
+
+        results = []
+        # Iterate over all Rg vectors
+        for Rg in self.Rgdict.keys():
+            iRg = self.Rgdict[Rg]
+            # Iterate over all Rk vectors
+            for Rk in self.Rkdict.keys():
+                iRk = self.Rkdict[Rk]
+                # Get coupling matrix for this (imode, Rg, Rk)
+                g_mat = self.get_epmat_Rv_from_index(imode, iRg, iRk)
+
+                # Iterate over Wannier function pairs
+                for i in range(self.nwann):
+                    for j in range(self.nwann):
+                        g_ij = g_mat[i, j]
+                        if g_ij != 0:  # Only store non-zero couplings
+                            # Distance from WF i to WF j+Rk (electron hopping-like)
+                            d_frac = w_centers[j] + np.asarray(Rk) - w_centers[i]
+                            d_cart = d_frac @ cell
+                            if use_absolute:
+                                dist = float(np.linalg.norm(d_cart))
+                            else:
+                                dist = d_cart
+
+                            results.append(
+                                {
+                                    "imode": int(imode),
+                                    "Rg": tuple(Rg),
+                                    "Rk": tuple(Rk),
+                                    "i": int(i),
+                                    "j": int(j),
+                                    "distance": dist,
+                                    "coupling": complex(g_ij),
+                                }
+                            )
+        return results
+
+    def distance_resolved_couplings_Rg(self, imode, cell, use_absolute=True):
+        """Return electron-phonon couplings annotated with Rg-based distances.
+
+        This method extracts g(imode, Rg, Rk, i, j) matrix elements and computes
+        the distance between electron Wannier function and atomic displacement.
+
+        Parameters
+        ----------
+        imode : int
+            Phonon mode index (0-based)
+        cell : array-like
+            3x3 lattice vectors in Angstrom (real-space lattice)
+        use_absolute : bool, optional
+            If True (default), return scalar distance norm.
+            If False, return 3D distance vector.
+
+        Returns
+        -------
+        list[dict]
+            Each item contains:
+                - "imode": phonon mode index
+                - "atom_index": index of atom associated with this mode
+                - "Rg": tuple of Rg vector
+                - "Rk": tuple of Rk vector
+                - "i": Wannier function index i
+                - "j": Wannier function index j
+                - "distance": distance between WF i and atom+Rg
+                - "coupling": complex coupling matrix element g
+        """
+        # Reshape positions
+        w_centers = np.asarray(self.crystal.w_centers).reshape(self.nwann, 3)
+        tau = np.asarray(self.crystal.tau).reshape(self.crystal.natom, 3)
+        cell = np.asarray(cell)
+
+        # Map mode to atom: each atom has 3 modes (x, y, z displacements)
+        atom_index = imode // 3
+
+        results = []
+        # Iterate over all Rg vectors
+        for Rg in self.Rgdict.keys():
+            iRg = self.Rgdict[Rg]
+            # Iterate over all Rk vectors
+            for Rk in self.Rkdict.keys():
+                iRk = self.Rkdict[Rk]
+                # Get coupling matrix for this (imode, Rg, Rk)
+                g_mat = self.get_epmat_Rv_from_index(imode, iRg, iRk)
+
+                # Iterate over Wannier function pairs
+                for i in range(self.nwann):
+                    for j in range(self.nwann):
+                        g_ij = g_mat[i, j]
+                        if g_ij != 0:  # Only store non-zero couplings
+                            # Distance from WF i to atom+Rg (electron-phonon coupling locality)
+                            d_frac = tau[atom_index] + np.asarray(Rg) - w_centers[i]
+                            d_cart = d_frac @ cell
+                            if use_absolute:
+                                dist = float(np.linalg.norm(d_cart))
+                            else:
+                                dist = d_cart
+
+                            results.append(
+                                {
+                                    "imode": int(imode),
+                                    "atom_index": int(atom_index),
+                                    "Rg": tuple(Rg),
+                                    "Rk": tuple(Rk),
+                                    "i": int(i),
+                                    "j": int(j),
+                                    "distance": dist,
+                                    "coupling": complex(g_ij),
+                                }
+                            )
+        return results
+
+    @staticmethod
+    def bin_couplings_by_distance(entries, dr=0.1):
+        """Bin coupling magnitudes as a function of distance.
+
+        Parameters
+        ----------
+        entries : list[dict]
+            Output of ``distance_resolved_couplings_Rk`` or
+            ``distance_resolved_couplings_Rg``.
+        dr : float, optional
+            Bin width in Angstrom, by default 0.1
+
+        Returns
+        -------
+        tuple[np.ndarray, np.ndarray]
+            (bin_centers, avg_abs_coupling) where avg_abs_coupling is the
+            average |g| in each distance bin.
+        """
+        if not entries:
+            return np.array([]), np.array([])
+
+        distances = np.array([e["distance"] for e in entries], dtype=float)
+        mags = np.abs([e["coupling"] for e in entries])
+
+        dmax = float(distances.max())
+        nbins = int(np.ceil(dmax / dr)) or 1
+        bin_edges = np.linspace(0, dmax, nbins + 1)
+        bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+
+        bin_indices = np.digitize(distances, bin_edges) - 1
+        bin_indices = np.clip(bin_indices, 0, nbins - 1)
+
+        avg_vals = np.zeros(nbins)
+        for i in range(nbins):
+            mask = bin_indices == i
+            if mask.any():
+                avg_vals[i] = mags[mask].mean()
+
+        return bin_centers, avg_vals
+
     def print_info(self):
         """Print basic information about the EPW matrix elements."""
         print(

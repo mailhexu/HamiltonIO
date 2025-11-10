@@ -1,4 +1,7 @@
 doc/refs/*.pdf
+tests/data
+
+*.pdf
 
 
 *.swp
@@ -11,6 +14,11 @@ doc/refs/*.pdf
 .github
 AGENTS.MD
 CLAUDE.MD
+openspec
+
+.opencode/
+agent_files/
+uv.lock
 
 
 

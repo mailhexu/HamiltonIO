@@ -441,6 +441,109 @@ class WannierHam(Hamiltonian):
             if len(R) != self.ndim:
                 raise ValueError("Dimension of R should be ndim %s" % (self.ndim))
 
+    def iter_unique_hoppings(self):
+        """Yield unique hopping matrix elements.
+
+        Iterates over symmetry-reduced hopping terms using the convention
+        t(i, j, R) = t(j, i, -R)^*.
+
+        - Only R with first non-zero component >= 0 are used.
+        - For R == (0, 0, 0), only i <= j are returned.
+
+        Yields:
+            tuple: (R, i, j, value)
+        """
+        for R, mat in self.data.items():
+            nz = np.nonzero(R)[0]
+            if len(nz) and R[nz[0]] < 0:
+                # skip negative R; covered by corresponding positive R term
+                continue
+
+            if len(nz) == 0:
+                # onsite / R=0: keep upper triangle including diagonal
+                for i in range(self.nbasis):
+                    for j in range(i, self.nbasis):
+                        val = mat[i, j]
+                        if val != 0:
+                            yield R, i, j, val
+            else:
+                # offsite positive-R matrix elements: take all i, j
+                for i in range(self.nbasis):
+                    for j in range(self.nbasis):
+                        val = mat[i, j]
+                        if val != 0:
+                            yield R, i, j, val
+
+    def distance_resolved_hoppings(self, cell, use_absolute=True):
+        """Return unique hoppings annotated with Wannier-center distances.
+
+        Args:
+            cell (array-like): 3x3 lattice vectors in Angstrom.
+            use_absolute (bool): If True (default), use absolute distance
+                between Wannier centers r_j + R and r_i.
+
+        Returns:
+            list[dict]: Each item has keys
+                "R", "i", "j", "distance", "hopping".
+        """
+        positions_frac = np.asarray(self.positions)
+        cell = np.asarray(cell)
+
+        results = []
+        for R, i, j, hij in self.iter_unique_hoppings():
+            # real-space vector from i to j includes lattice translation R
+            d_frac = positions_frac[j] + np.asarray(R) - positions_frac[i]
+            d_cart = d_frac @ cell
+            if use_absolute:
+                dist = float(np.linalg.norm(d_cart))
+            else:
+                dist = d_cart
+            results.append(
+                {
+                    "R": tuple(R),
+                    "i": int(i),
+                    "j": int(j),
+                    "distance": dist,
+                    "hopping": complex(hij),
+                }
+            )
+        return results
+
+    @staticmethod
+    def bin_hoppings_by_distance(entries, dr=0.1):
+        """Bin hopping magnitudes as a function of distance.
+
+        Args:
+            entries (Iterable[dict]): Output of ``distance_resolved_hoppings``.
+            dr (float): Bin width in Angstrom.
+
+        Returns:
+            tuple[np.ndarray, np.ndarray]: (bin_centers, avg_abs_h)
+        """
+        if not entries:
+            return np.array([]), np.array([])
+
+        distances = np.array([e["distance"] for e in entries], dtype=float)
+        mags = np.abs([e["hopping"] for e in entries])
+
+        dmax = float(distances.max())
+        nbins = int(np.ceil(dmax / dr)) or 1
+        edges = np.linspace(0.0, nbins * dr, nbins + 1)
+
+        sums = np.zeros(nbins, dtype=float)
+        counts = np.zeros(nbins, dtype=int)
+
+        inds = np.clip((distances / dr).astype(int), 0, nbins - 1)
+        for idx, mag in zip(inds, mags):
+            sums[idx] += mag
+            counts[idx] += 1
+
+        with np.errstate(divide="ignore", invalid="ignore"):
+            avg = np.where(counts > 0, sums / counts, 0.0)
+
+        centers = (edges[:-1] + edges[1:]) * 0.5
+        return centers, avg
+
 
 def merge_tbmodels_spin(tbmodel_up, tbmodel_dn):
     """
