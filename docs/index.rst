@@ -21,6 +21,7 @@ Welcome to HamiltonIO's documentation!
    siesta
    abacus
    epw
+   distance_analysis
    src/ReleaseNotes.md
 
 

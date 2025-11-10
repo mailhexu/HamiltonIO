@@ -15,7 +15,6 @@ This uses SrMnO3 EPW data and the Epmat helpers to:
 import os
 
 import matplotlib.pyplot as plt
-import numpy as np
 
 from HamiltonIO.epw.epwparser import Epmat, read_crystal_fmt
 
