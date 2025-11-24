@@ -184,6 +184,7 @@ class LCAOHamiltonian(Hamiltonian):
             Hk = R_to_onek(k, self.Rlist, self.HR)
             Sk = R_to_onek(k, self.Rlist, self.SR)
             if self.orth:
+                print("applying Lowdin symmetric orthonormalization...")
                 Hk = Lowdin_symmetric_orthonormalization(Hk, Sk)
                 Sk = None
         elif convention == 1:

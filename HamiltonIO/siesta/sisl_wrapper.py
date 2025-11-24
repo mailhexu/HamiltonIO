@@ -81,7 +81,6 @@ class SiestaHamiltonian(LCAOHamiltonian):
             orth=orth,
         )
         self._name = "SIESTA"
-        self.is_orthogonal = False
         self.R2kfactor = 2j * np.pi
         self.sisl_hamiltonian = sisl_hamiltonian
         self.spin_channel = spin_channel
