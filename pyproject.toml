@@ -43,8 +43,10 @@ classifiers = [
 ]
 
 [project.scripts]
+hamiltonio-abacus = "HamiltonIO.abacus.cli:main"
 hamiltonio-epw = "HamiltonIO.epw.cli:main"
 hamiltonio-wannier = "HamiltonIO.wannier.cli:main"
+hamiltonio-siesta = "HamiltonIO.siesta.cli:main"
 
 [build-system]
 requires = ["setuptools>=61", "wheel"]
