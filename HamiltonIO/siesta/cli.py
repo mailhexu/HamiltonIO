@@ -52,6 +52,7 @@ def analyze_intra_atomic(
         SiestaHamiltonian: The loaded Hamiltonian object
     """
     from .sisl_wrapper import SislParser
+    from HamiltonIO.print_hamiltonian import print_intra_atomic_hamiltonian
 
     # Validate input
     fdf_path = Path(fdf_file)
@@ -63,7 +64,8 @@ def analyze_intra_atomic(
     ham = parser.get_model()
 
     # Perform analysis
-    ham.print_intra_atomic_hamiltonian(
+    print_intra_atomic_hamiltonian(
+        ham,
         atom_indices=atoms,
         output_file=output_file,
         pauli_decomp=pauli_decomp,

@@ -363,31 +363,3 @@ class LCAOHamiltonian(Hamiltonian):
             result[iatom] = atom_data
 
         return result
-
-    def print_intra_atomic_hamiltonian(
-        self, atom_indices=None, output_file=None, pauli_decomp=True, show_matrix=False
-    ):
-        """
-        Print intra-atomic (on-site, R=(0,0,0)) Hamiltonian decomposition per atom.
-
-        This is a thin wrapper that calls the print_hamiltonian module.
-
-        Parameters:
-            atom_indices: list of int or None
-                Atom indices to print. If None, print all atoms.
-            output_file: str or None
-                If specified, write output to this file instead of stdout.
-            pauli_decomp: bool
-                If True and nspin==2, apply Pauli decomposition (I, σx, σy, σz).
-            show_matrix: bool
-                If True, print full matrix elements. Otherwise show summary statistics.
-        """
-        from HamiltonIO.print_hamiltonian import print_intra_atomic_hamiltonian
-
-        print_intra_atomic_hamiltonian(
-            self,
-            atom_indices=atom_indices,
-            output_file=output_file,
-            pauli_decomp=pauli_decomp,
-            show_matrix=show_matrix,
-        )

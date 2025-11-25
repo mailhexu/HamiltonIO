@@ -58,6 +58,7 @@ def analyze_intra_atomic(
         AbacusWrapper: The loaded Hamiltonian object
     """
     from .abacus_wrapper import AbacusParser, AbacusSplitSOCParser
+    from HamiltonIO.print_hamiltonian import print_intra_atomic_hamiltonian
 
     # Determine if split-SOC or single calculation
     if outpath_nosoc is not None and outpath_soc is not None:
@@ -102,7 +103,8 @@ def analyze_intra_atomic(
 
     # Perform analysis
     if ham is not None:
-        ham.print_intra_atomic_hamiltonian(
+        print_intra_atomic_hamiltonian(
+            ham,
             atom_indices=atoms,
             output_file=output_file,
             pauli_decomp=pauli_decomp,

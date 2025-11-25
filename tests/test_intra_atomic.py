@@ -157,6 +157,7 @@ def test_print_intra_atomic_hamiltonian_collinear():
     """Test printing functionality for collinear system."""
     import tempfile
     import os
+    from HamiltonIO.print_hamiltonian import print_intra_atomic_hamiltonian
 
     ham = create_mock_hamiltonian(natoms=2, norb_per_atom=2, nspin=1)
 
@@ -165,8 +166,8 @@ def test_print_intra_atomic_hamiltonian_collinear():
 
     try:
         # Print to file
-        ham.print_intra_atomic_hamiltonian(
-            output_file=output_file, pauli_decomp=False, show_matrix=False
+        print_intra_atomic_hamiltonian(
+            ham, output_file=output_file, pauli_decomp=False, show_matrix=False
         )
 
         # Check file was created and has content
@@ -186,6 +187,7 @@ def test_print_intra_atomic_hamiltonian_spinor_with_pauli():
     """Test printing with Pauli decomposition for spinor system."""
     import tempfile
     import os
+    from HamiltonIO.print_hamiltonian import print_intra_atomic_hamiltonian
 
     ham = create_mock_hamiltonian(natoms=1, norb_per_atom=2, nspin=2)
 
@@ -194,8 +196,8 @@ def test_print_intra_atomic_hamiltonian_spinor_with_pauli():
 
     try:
         # Print with Pauli decomposition
-        ham.print_intra_atomic_hamiltonian(
-            output_file=output_file, pauli_decomp=True, show_matrix=False
+        print_intra_atomic_hamiltonian(
+            ham, output_file=output_file, pauli_decomp=True, show_matrix=False
         )
 
         # Check Pauli components are mentioned
@@ -213,6 +215,7 @@ def test_print_intra_atomic_with_soc_split():
     """Test printing with SOC decomposition."""
     import tempfile
     import os
+    from HamiltonIO.print_hamiltonian import print_intra_atomic_hamiltonian
 
     ham = create_mock_hamiltonian(natoms=1, norb_per_atom=2, nspin=2, with_soc=True)
 
@@ -220,8 +223,8 @@ def test_print_intra_atomic_with_soc_split():
         output_file = f.name
 
     try:
-        ham.print_intra_atomic_hamiltonian(
-            output_file=output_file, pauli_decomp=True, show_matrix=False
+        print_intra_atomic_hamiltonian(
+            ham, output_file=output_file, pauli_decomp=True, show_matrix=False
         )
 
         with open(output_file, "r") as f:
