@@ -196,14 +196,14 @@ class WannierHam(Hamiltonian):
         Hk = np.zeros((self.nbasis, self.nbasis), dtype="complex")
         if convention == 2:
             for iR, (R, mat) in enumerate(self.data.items()):
-                phase = np.exp(self.R2kfactor * np.dot(k, R)) / self.R_degens[iR]
+                phase = np.exp(self.R2kfactor * np.dot(k, R))  # / self.R_degens[iR]
                 H = mat * phase
                 Hk += H + H.conjugate().T
         elif convention == 1:
             for iR, (R, mat) in enumerate(self.data.items()):
                 phase = (
                     np.exp(self.R2kfactor * np.dot(k, R + self.rjminusri))
-                    / self.R_degens[iR]
+                    # / self.R_degens[iR]
                 )
                 H = mat * phase
                 Hk += H + H.conjugate().T
