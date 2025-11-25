@@ -31,6 +31,7 @@ class LCAOHamiltonian(Hamiltonian):
         nel=None,
         so_strength=1.0,
         orth=False,
+        orb_dict=None,
     ):
         self.R2kfactor = 2j * np.pi
         self.is_orthogonal = False
@@ -45,6 +46,7 @@ class LCAOHamiltonian(Hamiltonian):
         self.nspin = nspin
         self.norb = nbasis * nspin
         self.nel = nel
+        self.orb_dict = orb_dict  # Store orb_dict for SIESTA parsers
         if HR_soc is not None:
             self.set_HR_soc(HR_soc=HR_soc, HR_nosoc=HR_nosoc, HR_full=HR)
         self.soc_rotation_angle = [0.0, 0.0]
@@ -241,3 +243,123 @@ class LCAOHamiltonian(Hamiltonian):
         occ = Occupations(nel=self.nel, wk=kweights, nspin=nspin)
         efermi = occ.efermi(evals)
         return efermi
+
+    def _get_orbital_atom_mapping(self):
+        """
+        Get mapping from orbital indices to atom indices.
+
+        Returns:
+            dict: Dictionary mapping atom_index -> list of orbital indices
+
+        For ABACUS: Uses orbital.iatom attribute
+        For SIESTA: Uses orb_dict attribute if available
+        """
+        orb_atom_map = {}
+
+        # Try ABACUS-style (orbs list with iatom attribute)
+        if hasattr(self, "orbs") and self.orbs is not None:
+            if hasattr(self.orbs[0], "iatom"):
+                # ABACUS case
+                for iorb, orb in enumerate(self.orbs):
+                    iatom = orb.iatom
+                    if iatom not in orb_atom_map:
+                        orb_atom_map[iatom] = []
+                    orb_atom_map[iatom].append(iorb)
+                return orb_atom_map
+
+        # Try SIESTA-style (orb_dict attribute)
+        if hasattr(self, "orb_dict") and self.orb_dict is not None:
+            # SIESTA case - orb_dict maps atom_index -> list of orbital names
+            # Need to map orbital names to indices
+            orb_name_to_idx = (
+                {name: idx for idx, name in enumerate(self.orbs)}
+                if hasattr(self, "orbs") and self.orbs
+                else {}
+            )
+            for iatom, orb_names in self.orb_dict.items():
+                orb_atom_map[iatom] = [
+                    orb_name_to_idx[name]
+                    for name in orb_names
+                    if name in orb_name_to_idx
+                ]
+            return orb_atom_map
+
+        # Fallback: assume atoms attribute exists and create mapping
+        # This is less reliable but may work for simple cases
+        if hasattr(self, "atoms") and self.atoms is not None:
+            natoms = len(self.atoms)
+            norb_per_atom = self.nbasis // natoms
+            for iatom in range(natoms):
+                orb_atom_map[iatom] = list(
+                    range(iatom * norb_per_atom, (iatom + 1) * norb_per_atom)
+                )
+            return orb_atom_map
+
+        raise AttributeError(
+            "Cannot determine orbital-to-atom mapping. "
+            "Neither ABACUS orbs nor SIESTA orb_dict found."
+        )
+
+    def get_intra_atomic_blocks(self, atom_indices=None):
+        """
+        Extract intra-atomic (on-site, R=(0,0,0)) Hamiltonian blocks for each atom.
+
+        Parameters:
+            atom_indices: list of int or None
+                Atom indices to extract. If None, extract all atoms.
+
+        Returns:
+            dict: Dictionary with structure:
+                {
+                    atom_index: {
+                        'H_full': H(R=0) block for this atom (nbasis_atom x nbasis_atom),
+                        'H_nosoc': non-SOC part if split_soc=True, else None,
+                        'H_soc': SOC part if split_soc=True, else None,
+                        'orbital_indices': list of orbital indices for this atom
+                    }
+                }
+        """
+        # Get H(R=0)
+        R0_idx = self.get_Ridx((0, 0, 0))
+        H0_full = self.HR[R0_idx]
+
+        # Get SOC decomposition if available
+        H0_nosoc = None
+        H0_soc = None
+        if self.split_soc:
+            H0_nosoc = self.HR_nosoc[R0_idx]
+            H0_soc = self.HR_soc[R0_idx]
+
+        # Get orbital-to-atom mapping
+        orb_atom_map = self._get_orbital_atom_mapping()
+
+        # Filter atoms if specified
+        if atom_indices is None:
+            atom_indices = sorted(orb_atom_map.keys())
+
+        # Extract blocks for each atom
+        result = {}
+        for iatom in atom_indices:
+            if iatom not in orb_atom_map:
+                continue
+
+            orb_inds = orb_atom_map[iatom]
+            orb_inds = np.array(orb_inds)
+
+            # Extract atom block using advanced indexing
+            H_atom_full = H0_full[np.ix_(orb_inds, orb_inds)]
+
+            atom_data = {
+                "H_full": H_atom_full,
+                "H_nosoc": None,
+                "H_soc": None,
+                "orbital_indices": orb_inds.tolist(),
+            }
+
+            if self.split_soc:
+                atom_data["H_nosoc"] = H0_nosoc[np.ix_(orb_inds, orb_inds)]
+                atom_data["H_soc"] = H0_soc[np.ix_(orb_inds, orb_inds)]
+
+            result[iatom] = atom_data
+
+        return result

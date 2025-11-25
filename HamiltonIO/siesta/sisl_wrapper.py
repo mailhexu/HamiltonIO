@@ -37,6 +37,7 @@ class SiestaHamiltonian(LCAOHamiltonian):
         orth=False,
         sisl_hamiltonian=None,
         spin_channel=None,
+        orb_dict=None,
     ):
         """
         Hamiltonian object for Siesta
@@ -65,6 +66,8 @@ class SiestaHamiltonian(LCAOHamiltonian):
             sisl Hamiltonian object for direct k-space calculations
         spin_channel: int
             Spin channel (0 for up, 1 for down) for spin-polarized calculations
+        orb_dict: dict
+            Dictionary mapping atom index to list of orbital names (for SIESTA)
         """
 
         super().__init__(
@@ -79,6 +82,7 @@ class SiestaHamiltonian(LCAOHamiltonian):
             HR_soc=HR_soc,
             nel=nel,
             orth=orth,
+            orb_dict=orb_dict,
         )
         self._name = "SIESTA"
         self.R2kfactor = 2j * np.pi
@@ -221,6 +225,7 @@ class SislParser:
                 atoms=self.atoms,
                 orth=self.orth,
                 sisl_hamiltonian=self.ham,
+                orb_dict=self.orb_dict,
             )
             return model
         else:
@@ -238,6 +243,7 @@ class SislParser:
                 orth=self.orth,
                 sisl_hamiltonian=self.ham,
                 spin_channel=0,  # Spin up channel
+                orb_dict=self.orb_dict,
             )
             model_down = SiestaHamiltonian(
                 HR=HR[1],
@@ -253,6 +259,7 @@ class SislParser:
                 orth=self.orth,
                 sisl_hamiltonian=self.ham,
                 spin_channel=1,  # Spin down channel
+                orb_dict=self.orb_dict,
             )
             model = (model_up, model_down)
             if self.ispin is not None:

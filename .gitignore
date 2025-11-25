@@ -1,6 +1,8 @@
 doc/refs/*.pdf
 tests/data
 
+refs
+
 *.pdf
 
 

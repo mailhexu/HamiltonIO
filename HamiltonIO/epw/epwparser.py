@@ -857,7 +857,8 @@ class Epmat:
                     for j in range(self.nwann):
                         g_ij = g_mat[i, j]
                         if g_ij != 0:  # Only store non-zero couplings
-                            # Distance from WF i to atom+Rg (electron-phonon coupling locality)
+                            # Distance from WF i to atom+Rg
+                            # (electron-phonon coupling locality)
                             d_frac = tau[atom_index] + np.asarray(Rg) - w_centers[i]
                             d_cart = d_frac @ cell
                             if use_absolute:
@@ -922,7 +923,8 @@ class Epmat:
     def print_info(self):
         """Print basic information about the EPW matrix elements."""
         print(
-            f"nwann: {self.nwann}\n nRk:{self.nRk}, nmodes:{self.nmodes}, nRg:{self.nRg}"
+            f"nwann: {self.nwann}\n nRk:{self.nRk}, "
+            f"nmodes:{self.nmodes}, nRg:{self.nRg}"
         )
 
     def save_to_netcdf(self, path, fname):

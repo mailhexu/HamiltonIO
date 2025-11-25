@@ -1,6 +1,5 @@
 import numpy as np
-from scipy.sparse import eye_array, kron
-
+import scipy.sparse as ssp
 from HamiltonIO.mathutils.pauli import gather_pauli_blocks, pauli_block_all
 
 
@@ -153,7 +152,7 @@ def rotate_spinor_matrix_spkron(M, theta, phi):
     """ """
     U = rotation_matrix(theta, phi)
     # U = np.kron( U, np.eye(M.shape[0]//2))
-    U = kron(eye_array(M.shape[0] // 2), U)
+    U = ssp.kron(ssp.eye_array(M.shape[0] // 2), U)
     # U = np.kron(np.eye(M.shape[0]//2), U)
     M = U.conj().T @ M @ U
     return M

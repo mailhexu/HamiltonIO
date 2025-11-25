@@ -1,6 +1,6 @@
 [project]
 name = "HamiltonIO"
-version = "0.2.8"
+version = "0.3.0"
 description = "A library for reading/writting Hamiltonian with localized basis set."
 authors = [
     {name = "Xu He", email = "x.he@uliege.be"},
@@ -43,7 +43,10 @@ classifiers = [
 ]
 
 [project.scripts]
+hamiltonio-abacus = "HamiltonIO.abacus.cli:main"
 hamiltonio-epw = "HamiltonIO.epw.cli:main"
+hamiltonio-wannier = "HamiltonIO.wannier.cli:main"
+hamiltonio-siesta = "HamiltonIO.siesta.cli:main"
 
 [build-system]
 requires = ["setuptools>=61", "wheel"]

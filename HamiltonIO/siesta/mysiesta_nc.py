@@ -26,8 +26,10 @@ class MySiestaNC(ncSileSiesta):
                 f"{self}.read_soc_hamiltonian requires the stored matrix to be in Ry!"
             )
 
-        # for i in range(len(H.spin)):
-        for i in range(8):
+        # H_so has shape (n_spin_components, nnzs)
+        # For SOC, there are 8 spin components
+        n_spin = sp.variables["H_so"].shape[0]
+        for i in range(n_spin):
             H._csr._D[:, i] = sp.variables["H_so"][i, :] * Ry / eV
 
         # fix siesta specific notation

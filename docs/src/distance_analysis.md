@@ -117,6 +117,66 @@ print(f"Found {len(entries)} hopping elements")
 print(f"Distance range: {min(distances):.2f} - {max(distances):.2f} Å")
 ```
 
+### Using the CLI Tool
+
+HamiltonIO provides a command-line tool for quick Wannier distance analysis:
+
+```bash
+# Analyze hopping vs distance (auto-detect structure file)
+hamiltonio-wannier distance --path ./wannier_calc --prefix wannier90
+
+# Specify structure file explicitly
+hamiltonio-wannier distance -p ./ -n wannier90 -s POSCAR -f vasp
+
+# Custom output and y-axis limits
+hamiltonio-wannier distance -p ./ -n material -o hopping.pdf --ylim 1e-4 10
+```
+
+**CLI Options:**
+- `-p, --path`: Path to Wannier90 directory (default: current directory)
+- `-n, --prefix`: Wannier90 file prefix (default: wannier90)
+- `-s, --structure-file`: Structure filename (auto-detected if omitted)
+- `-f, --structure-format`: Structure format (vasp, cif, espresso-in, etc.)
+- `-o, --output`: Output plot filename (default: wannier_distance.pdf)
+- `--ylim MIN MAX`: Y-axis limits (default: 1e-5 10)
+
+**Example workflow:**
+```bash
+cd /path/to/wannier_calculation
+hamiltonio-wannier distance -n mymat -o hoppings.pdf --ylim 1e-3 5
+```
+
+### Using the Plotting API
+
+For more control and integration into existing scripts:
+
+```python
+import matplotlib.pyplot as plt
+from HamiltonIO.wannier import plot_wannier_distance
+
+# Create figure
+fig, ax = plt.subplots(figsize=(6, 5))
+
+# Plot using the API
+plot_wannier_distance(
+    ax=ax,
+    path="./wannier_calc",
+    prefix="wannier90",
+    structure_file="POSCAR",
+    structure_format="vasp",
+    ylim=(1e-4, 10),
+    color="steelblue",  # Pass matplotlib scatter kwargs
+    s=3,
+    alpha=0.6,
+)
+
+ax.set_title("Wannier Hopping vs Distance")
+plt.tight_layout()
+plt.savefig("plot.pdf")
+```
+
+See `examples/wannier/plot_api_example.py` for a complete working example.
+
 ## EPW: Electron-Phonon Coupling vs Distance
 
 ### Two Distance Metrics
@@ -316,6 +376,89 @@ plt.tight_layout()
 plt.savefig("coupling_vs_distance.pdf")
 print(f"\nPlot saved to coupling_vs_distance.pdf")
 ```
+
+### Using the CLI Tool
+
+HamiltonIO provides a command-line tool for quick distance analysis without writing Python code:
+
+```bash
+# Convert EPW data to NetCDF first (if not already done)
+hamiltonio-epw epw_to_nc --path ./epw_data --prefix material
+
+# Analyze Rk-based (WF-WF) distance for mode 0
+hamiltonio-epw distance --path ./epw_data --imode 0 --distance-type Rk -o mode0_Rk.pdf
+
+# Analyze Rg-based (WF-atom) distance for mode 5
+hamiltonio-epw distance -p ./epw_data -m 5 -t Rg -o mode5_Rg.pdf
+
+# Custom y-axis limits
+hamiltonio-epw distance -p ./ -m 0 --ylim 1e-4 10 -o custom_ylim.pdf
+```
+
+**CLI Options:**
+- `-p, --path`: Directory containing EPW files (default: current directory)
+- `-m, --imode`: Phonon mode index (required)
+- `-t, --distance-type`: Either 'Rk' (WF-WF) or 'Rg' (WF-atom), default: Rk
+- `-o, --output`: Output plot filename (default: epw_distance.pdf)
+- `--epmat-ncfile`: NetCDF filename (default: epmat.nc)
+- `--crystal-fmt-file`: Crystal format file (default: crystal.fmt)
+- `--ylim MIN MAX`: Y-axis limits (default: 1e-5 10)
+
+**Example workflow:**
+```bash
+# 1. Convert binary EPW data to NetCDF
+cd /path/to/epw_calculation
+hamiltonio-epw epw_to_nc --prefix mymat --output epmat.nc
+
+# 2. Analyze first 3 modes with both distance types
+hamiltonio-epw distance -m 0 -t Rk -o mode0_Rk.pdf
+hamiltonio-epw distance -m 0 -t Rg -o mode0_Rg.pdf
+hamiltonio-epw distance -m 1 -t Rk -o mode1_Rk.pdf
+hamiltonio-epw distance -m 1 -t Rg -o mode1_Rg.pdf
+hamiltonio-epw distance -m 2 -t Rk -o mode2_Rk.pdf
+hamiltonio-epw distance -m 2 -t Rg -o mode2_Rg.pdf
+```
+
+### Using the Plotting API
+
+For more control and integration into existing scripts, use the `plot_epw_distance` function:
+
+```python
+import matplotlib.pyplot as plt
+from HamiltonIO.epw import plot_epw_distance
+
+# Create figure
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
+
+# Plot Rk-based distances
+plot_epw_distance(
+    ax=ax1,
+    path="./epw_data",
+    imode=0,
+    distance_type="Rk",
+    ylim=(1e-4, 10),
+    color="blue",  # Pass matplotlib scatter kwargs directly
+    s=5,
+    alpha=0.6,
+)
+ax1.set_title("Rk-based (WF-WF)")
+
+# Plot Rg-based distances
+plot_epw_distance(
+    ax=ax2,
+    path="./epw_data",
+    imode=0,
+    distance_type="Rg",
+    ylim=(1e-4, 10),
+    color="green",
+)
+ax2.set_title("Rg-based (WF-atom)")
+
+plt.tight_layout()
+plt.savefig("comparison.pdf")
+```
+
+See `examples/epw/plot_api_example.py` for a complete working example.
 
 ## Interpreting Results
 
