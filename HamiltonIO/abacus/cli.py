@@ -89,9 +89,9 @@ def analyze_intra_atomic(
 
         # Handle collinear case (returns tuple)
         if isinstance(result, tuple):
-            ham = result[0]  # Use spin-up component
+            ham = result
             print(
-                "\nNote: Collinear calculation detected. Analyzing spin-up component."
+                "\nNote: Collinear calculation detected. Analyzing both spin components."
             )
         else:
             ham = result
@@ -188,12 +188,15 @@ def intra_atomic_command(args):
         print()
         print(f"System: ABACUS")
         if ham is not None:
-            if hasattr(ham, "atoms") and ham.atoms is not None:
-                print(f"Number of atoms: {len(ham.atoms)}")
-            if hasattr(ham, "nbasis"):
-                print(f"Basis functions: {ham.nbasis}")
-            if hasattr(ham, "split_soc"):
-                print(f"Split-SOC: {ham.split_soc}")
+            # If tuple (collinear), use first component for summary
+            h_summary = ham[0] if isinstance(ham, tuple) else ham
+
+            if hasattr(h_summary, "atoms") and h_summary.atoms is not None:
+                print(f"Number of atoms: {len(h_summary.atoms)}")
+            if hasattr(h_summary, "nbasis"):
+                print(f"Basis functions: {h_summary.nbasis}")
+            if hasattr(h_summary, "split_soc"):
+                print(f"Split-SOC: {h_summary.split_soc}")
         print()
 
         if args.output:

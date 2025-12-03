@@ -15,6 +15,7 @@ def print_intra_atomic_hamiltonian(
     hamiltonian,
     atom_indices=None,
     output_file=None,
+    file_handle=None,
     pauli_decomp=True,
     show_matrix=False,
 ):
@@ -28,6 +29,8 @@ def print_intra_atomic_hamiltonian(
             Atom indices to print. If None, print all atoms.
         output_file: str or None
             If specified, write output to this file instead of stdout.
+        file_handle: file object or None
+            If specified, write to this file handle. Overrides output_file.
         pauli_decomp: bool
             If True and nspin==2, apply Pauli decomposition (I, σx, σy, σz).
         show_matrix: bool
@@ -46,35 +49,60 @@ def print_intra_atomic_hamiltonian(
     import sys
 
     # Open output file if specified
-    if output_file:
+    should_close = False
+    if file_handle:
+        f = file_handle
+    elif output_file:
         f = open(output_file, "w")
+        should_close = True
     else:
         f = sys.stdout
 
     try:
-        # Get intra-atomic blocks
-        blocks = hamiltonian.get_intra_atomic_blocks(atom_indices=atom_indices)
+        # Check if hamiltonian is a tuple (collinear case: up, down)
+        is_collinear_pair = isinstance(hamiltonian, tuple) and len(hamiltonian) == 2
+
+        if is_collinear_pair:
+            ham_up, ham_dn = hamiltonian
+            blocks_up = ham_up.get_intra_atomic_blocks(atom_indices=atom_indices)
+            blocks_dn = ham_dn.get_intra_atomic_blocks(atom_indices=atom_indices)
+            main_ham = ham_up
+            atom_keys = sorted(blocks_up.keys())
+        else:
+            # Get intra-atomic blocks
+            blocks = hamiltonian.get_intra_atomic_blocks(atom_indices=atom_indices)
+            main_ham = hamiltonian
+            atom_keys = sorted(blocks.keys())
 
         # Get atom symbols if available
         atom_symbols = None
-        if hasattr(hamiltonian, "atoms") and hamiltonian.atoms is not None:
-            atom_symbols = hamiltonian.atoms.get_chemical_symbols()
+        if hasattr(main_ham, "atoms") and main_ham.atoms is not None:
+            atom_symbols = main_ham.atoms.get_chemical_symbols()
 
         # Print header
         f.write("=" * 80 + "\n")
         f.write("Intra-Atomic Hamiltonian Analysis (R=(0,0,0))\n")
         f.write("=" * 80 + "\n")
-        f.write(f"System: {hamiltonian._name}\n")
-        f.write(f"Total basis functions: {hamiltonian.nbasis}\n")
-        f.write(
-            f"Spin configuration: {'Spinor (nspin=2)' if hamiltonian.nspin == 2 else 'Collinear/Non-polarized (nspin=1)'}\n"
-        )
-        f.write(f"SOC splitting: {'Yes' if hamiltonian.split_soc else 'No'}\n")
+        f.write(f"System: {main_ham._name}\n")
+        f.write(f"Total basis functions: {main_ham.nbasis}\n")
+
+        if is_collinear_pair:
+            f.write("Spin configuration: Collinear (Up/Down separated)\n")
+        else:
+            f.write(
+                f"Spin configuration: {'Spinor (nspin=2)' if main_ham.nspin == 2 else 'Collinear/Non-polarized (nspin=1)'}\n"
+            )
+            f.write(f"SOC splitting: {'Yes' if main_ham.split_soc else 'No'}\n")
         f.write("=" * 80 + "\n\n")
 
         # Print each atom
-        for iatom in sorted(blocks.keys()):
-            atom_data = blocks[iatom]
+        for iatom in atom_keys:
+            if is_collinear_pair:
+                atom_data = blocks_up[iatom]
+                atom_data_dn = blocks_dn[iatom]
+            else:
+                atom_data = blocks[iatom]
+
             symbol = atom_symbols[iatom] if atom_symbols else "Unknown"
             norb_atom = len(atom_data["orbital_indices"])
 
@@ -85,11 +113,11 @@ def print_intra_atomic_hamiltonian(
             f.write(f"Number of basis functions: {norb_atom}\n")
 
             # Print orbital labels if available
-            if hasattr(hamiltonian, "orbs") and hamiltonian.orbs:
+            if hasattr(main_ham, "orbs") and main_ham.orbs:
                 orbital_labels = [
-                    hamiltonian.orbs[i]
+                    main_ham.orbs[i]
                     for i in atom_data["orbital_indices"]
-                    if i < len(hamiltonian.orbs)
+                    if i < len(main_ham.orbs)
                 ]
                 if orbital_labels:
                     f.write("Orbital labels:\n")
@@ -98,52 +126,102 @@ def print_intra_atomic_hamiltonian(
 
             f.write(f"{'-' * 80}\n")
 
-            # Process full Hamiltonian
-            print_hamiltonian_block(
-                f,
-                atom_data["H_full"],
-                "Full Hamiltonian",
-                pauli_decomp=pauli_decomp,
-                show_matrix=show_matrix,
-            )
+            if is_collinear_pair:
+                H_up = atom_data["H_full"]
+                H_dn = atom_data_dn["H_full"]
 
-            # Process SOC decomposition if available
-            if hamiltonian.split_soc:
-                f.write(f"\n{'-' * 80}\n")
-                f.write("SOC Decomposition:\n")
-                f.write(f"{'-' * 80}\n")
+                # Calculate Charge and Spin-Z components
+                # Charge = (Up + Down) / 2
+                # Spin-Z = (Up - Down) / 2
+                H_charge = (H_up + H_dn) / 2.0
+                H_z = (H_up - H_dn) / 2.0
 
                 print_hamiltonian_block(
                     f,
-                    atom_data["H_nosoc"],
-                    "Non-SOC Part",
+                    H_up,
+                    "Spin Up Component",
+                    pauli_decomp=False,
+                    show_matrix=show_matrix,
+                )
+                print_hamiltonian_block(
+                    f,
+                    H_dn,
+                    "Spin Down Component",
+                    pauli_decomp=False,
+                    show_matrix=show_matrix,
+                )
+
+                f.write(f"\n{'-' * 40}\n")
+                f.write("Decomposed Components:")
+                f.write(f"\n{'-' * 40}\n")
+
+                print_hamiltonian_block(
+                    f,
+                    H_charge,
+                    "Charge Component (Up+Down)/2",
+                    pauli_decomp=False,
+                    show_matrix=show_matrix,
+                )
+                print_hamiltonian_block(
+                    f,
+                    H_z,
+                    "Spin Z Component (Up-Down)/2",
+                    pauli_decomp=False,
+                    show_matrix=show_matrix,
+                )
+
+            else:
+                # Process full Hamiltonian
+                print_hamiltonian_block(
+                    f,
+                    atom_data["H_full"],
+                    "Full Hamiltonian",
                     pauli_decomp=pauli_decomp,
                     show_matrix=show_matrix,
                 )
 
-                f.write("\n")
-                print_hamiltonian_block(
-                    f,
-                    atom_data["H_soc"],
-                    "SOC Part",
-                    pauli_decomp=pauli_decomp,
-                    show_matrix=show_matrix,
-                )
+                # Process SOC decomposition if available
+                if main_ham.split_soc:
+                    f.write(f"\n{'-' * 80}\n")
+                    f.write("SOC Decomposition:\n")
+                    f.write(f"{'-' * 80}\n")
 
-                # Verify sum
-                if atom_data["H_nosoc"] is not None and atom_data["H_soc"] is not None:
-                    H_reconstructed = atom_data["H_nosoc"] + atom_data["H_soc"]
-                    diff_norm = np.linalg.norm(H_reconstructed - atom_data["H_full"])
-                    f.write(
-                        f"\nVerification: ||H_full - (H_nosoc + H_soc)|| = {diff_norm:.2e}\n"
+                    print_hamiltonian_block(
+                        f,
+                        atom_data["H_nosoc"],
+                        "Non-SOC Part",
+                        pauli_decomp=pauli_decomp,
+                        show_matrix=show_matrix,
                     )
+
+                    f.write("\n")
+                    print_hamiltonian_block(
+                        f,
+                        atom_data["H_soc"],
+                        "SOC Part",
+                        pauli_decomp=pauli_decomp,
+                        show_matrix=show_matrix,
+                    )
+
+                    # Verify sum
+                    if (
+                        atom_data["H_nosoc"] is not None
+                        and atom_data["H_soc"] is not None
+                    ):
+                        H_reconstructed = atom_data["H_nosoc"] + atom_data["H_soc"]
+                        diff_norm = np.linalg.norm(
+                            H_reconstructed - atom_data["H_full"]
+                        )
+                        f.write(
+                            f"\nVerification: ||H_full - (H_nosoc + H_soc)|| = {diff_norm:.2e}\n"
+                        )
 
         f.write(f"\n{'=' * 80}\n")
         f.write("End of Intra-Atomic Hamiltonian Analysis\n")
         f.write("=" * 80 + "\n")
 
     finally:
-        if output_file:
+        if should_close:
             f.close()
 
 
