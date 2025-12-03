@@ -284,17 +284,6 @@ class LCAOHamiltonian(Hamiltonian):
                 ]
             return orb_atom_map
 
-        # Fallback: assume atoms attribute exists and create mapping
-        # This is less reliable but may work for simple cases
-        if hasattr(self, "atoms") and self.atoms is not None:
-            natoms = len(self.atoms)
-            norb_per_atom = self.nbasis // natoms
-            for iatom in range(natoms):
-                orb_atom_map[iatom] = list(
-                    range(iatom * norb_per_atom, (iatom + 1) * norb_per_atom)
-                )
-            return orb_atom_map
-
         raise AttributeError(
             "Cannot determine orbital-to-atom mapping. "
             "Neither ABACUS orbs nor SIESTA orb_dict found."

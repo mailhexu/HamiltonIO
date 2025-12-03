@@ -127,6 +127,8 @@ class AbacusParser:
             model_up.efermi = self.efermi
             model_dn.efermi = self.efermi
             model_up.basis, model_dn.basis = self.get_basis()
+            model_up.orbs = self.basis
+            model_dn.orbs = self.basis
             model_up.atoms = self.atoms
             model_dn.atoms = self.atoms
             return model_up, model_dn
@@ -137,6 +139,7 @@ class AbacusParser:
             )
             model.efermi = self.efermi
             model.basis = self.get_basis()
+            model.orbs = self.basis
             model.atoms = self.atoms
             return model
 
@@ -224,6 +227,7 @@ class AbacusSplitSOCParser:
         )
         model.efermi = self.parser_soc.efermi
         model.basis = self.parser_nosoc.basis
+        model.orbs = self.parser_nosoc.basis
         model.atoms = self.parser_nosoc.atoms
         return model
 
