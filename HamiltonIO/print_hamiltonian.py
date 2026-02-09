@@ -8,6 +8,7 @@ with support for Pauli decomposition and SOC splitting.
 """
 
 import numpy as np
+
 from HamiltonIO.mathutils.pauli import pauli_block_all
 
 
@@ -92,7 +93,7 @@ def print_intra_atomic_hamiltonian(
             f.write(
                 f"Spin configuration: {'Spinor (nspin=2)' if main_ham.nspin == 2 else 'Collinear/Non-polarized (nspin=1)'}\n"
             )
-            f.write(f"SOC splitting: {'Yes' if main_ham.split_soc else 'No'}\n")
+            # f.write(f"SOC splitting: {'Yes' if main_ham.split_soc else 'No'}\n")
         f.write("=" * 80 + "\n\n")
 
         # Print each atom
@@ -181,40 +182,6 @@ def print_intra_atomic_hamiltonian(
                 )
 
                 # Process SOC decomposition if available
-                if main_ham.split_soc:
-                    f.write(f"\n{'-' * 80}\n")
-                    f.write("SOC Decomposition:\n")
-                    f.write(f"{'-' * 80}\n")
-
-                    print_hamiltonian_block(
-                        f,
-                        atom_data["H_nosoc"],
-                        "Non-SOC Part",
-                        pauli_decomp=pauli_decomp,
-                        show_matrix=show_matrix,
-                    )
-
-                    f.write("\n")
-                    print_hamiltonian_block(
-                        f,
-                        atom_data["H_soc"],
-                        "SOC Part",
-                        pauli_decomp=pauli_decomp,
-                        show_matrix=show_matrix,
-                    )
-
-                    # Verify sum
-                    if (
-                        atom_data["H_nosoc"] is not None
-                        and atom_data["H_soc"] is not None
-                    ):
-                        H_reconstructed = atom_data["H_nosoc"] + atom_data["H_soc"]
-                        diff_norm = np.linalg.norm(
-                            H_reconstructed - atom_data["H_full"]
-                        )
-                        f.write(
-                            f"\nVerification: ||H_full - (H_nosoc + H_soc)|| = {diff_norm:.2e}\n"
-                        )
 
         f.write(f"\n{'=' * 80}\n")
         f.write("End of Intra-Atomic Hamiltonian Analysis\n")

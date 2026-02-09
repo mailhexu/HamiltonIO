@@ -3,6 +3,7 @@ import os
 from collections import defaultdict
 
 import numpy as np
+from ase.io import read
 from scipy.io import netcdf_file
 from scipy.linalg import eigh
 from scipy.sparse import csr_matrix
@@ -110,17 +111,26 @@ class WannierHam(Hamiltonian):
         return data
 
     @staticmethod
-    def read_from_wannier_dir(path, prefix, atoms=None, nls=True, groupby=None):
+    def read_from_wannier_dir(
+        path, prefix, atoms=None, nls=True, groupby=None, structure_file=None
+    ):
         """
         read tight binding model from a wannier function directory.
         :param path: path
-        :param prefix: prefix to the wannier files, often wannier90, or wannier90_up, or wannier90_dn for vasp.
+        :param prefix: prefix to wannier files, often wannier90, or wannier90_up, or wannier90_dn for vasp.
+        :param atoms: optional ase Atoms object. If None, will read from .win file.
+        :param structure_file: relative or absolute path to external structure file.  str or None.
         """
         if atoms is None:
-            atoms = parse_atoms(os.path.join(path, prefix + ".win"))
+            if structure_file is not None:
+                atoms = read(structure_file)
+            else:
+                atoms = parse_atoms(os.path.join(path, prefix + ".win"))
         cell = atoms.get_cell()
         tb_fname = os.path.join(path, prefix + "_tb.dat")
         hr_fname = os.path.join(path, prefix + "_hr.dat")
+        has_xyz = False
+
         if os.path.exists(tb_fname):
             xcart, nbasis, data, R_degens = parse_tb(fname=tb_fname)
             xred = cell.scaled_positions(xcart)
@@ -132,7 +142,10 @@ class WannierHam(Hamiltonian):
                 xcart, _, _ = parse_xyz(fname=xyz_fname)
                 xred = cell.scaled_positions(xcart)
             else:
-                raise FileNotFoundError(f"The file {xyz_fname} does not exist.")
+                if structure_file is not None:
+                    xred = cell.scaled_positions(atoms.get_positions())
+                else:
+                    raise FileNotFoundError(f"The file {xyz_fname} does not exist.")
 
         if groupby == "spin":
             # error message if nbasis is not even.
@@ -304,6 +317,97 @@ class WannierHam(Hamiltonian):
             newR = R
             newmat = mat
         return newR, newmat
+
+    def _get_orbital_atom_mapping(self):
+        """
+        Get mapping from orbital indices to atom indices.
+
+        For Wannier90, assigns each Wannier function to the nearest atom
+        based on their positions in reduced coordinates.
+
+        Returns:
+            dict: Dictionary mapping atom_index -> list of orbital indices
+        """
+        if self.atoms is None:
+            raise AttributeError(
+                "Cannot determine orbital-to-atom mapping: atoms not set. "
+                "Call set_atoms(atoms) first."
+            )
+
+        orb_atom_map = {}
+        atom_positions = self.atoms.get_scaled_positions(wrap=False)
+
+        for iorb, pos in enumerate(self.positions):
+            distances = []
+            for iatom, atom_pos in enumerate(atom_positions):
+                d = pos - atom_pos
+                rd = d - np.round(d)
+                dist = np.linalg.norm(rd)
+                distances.append(dist)
+            iatom = np.argmin(distances)
+            if iatom not in orb_atom_map:
+                orb_atom_map[iatom] = []
+            orb_atom_map[iatom].append(iorb)
+
+        return orb_atom_map
+
+    def get_intra_atomic_blocks(self, atom_indices=None):
+        """
+        Extract intra-atomic (on-site, R=(0,0,0)) Hamiltonian blocks for each atom.
+
+        For Wannier90, this extracts the diagonal elements of H(R=0) where
+        Wannier functions are assigned to atoms based on spatial proximity.
+
+        Parameters:
+            atom_indices: list of int or None
+                Atom indices to extract. If None, extract all atoms.
+
+        Returns:
+            dict: Dictionary with structure:
+                {
+                    atom_index: {
+                        'H_full': H(R=0) diagonal block for this atom (nbasis_atom x nbasis_atom),
+                        'H_nosoc': None (SOC splitting not supported for Wannier90),
+                        'H_soc': None (SOC splitting not supported for Wannier90),
+                        'orbital_indices': list of orbital indices for this atom
+                    }
+                }
+        """
+        if self.atoms is None:
+            raise AttributeError(
+                "Cannot extract intra-atomic blocks: atoms not set. "
+                "Call set_atoms(atoms) first."
+            )
+
+        # Get H(R=0)
+        H0 = self.ham_R0
+
+        # Get orbital-to-atom mapping
+        orb_atom_map = self._get_orbital_atom_mapping()
+
+        # Filter atoms if specified
+        if atom_indices is None:
+            atom_indices = sorted(orb_atom_map.keys())
+
+        # Extract blocks for each atom
+        result = {}
+        for iatom in atom_indices:
+            if iatom not in orb_atom_map:
+                continue
+
+            orb_inds = orb_atom_map[iatom]
+
+            # Extract atom block using advanced indexing
+            H_atom = H0[np.ix_(orb_inds, orb_inds)]
+
+            result[iatom] = {
+                "H_full": H_atom,
+                "H_nosoc": None,
+                "H_soc": None,
+                "orbital_indices": orb_inds,
+            }
+
+        return result
 
     def _to_positive_R(self):
         """
