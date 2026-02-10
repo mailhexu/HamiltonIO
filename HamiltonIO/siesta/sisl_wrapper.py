@@ -362,15 +362,32 @@ class SislParser:
 
     def read_geometry(self, fdf):
         geom = fdf.read_geometry()
-        _atoms = geom._atoms
-        atomic_numbers = []
+
         self.positions = geom.xyz
         self.cell = np.array(geom.lattice.cell)
-        for ia, a in enumerate(_atoms):
-            atomic_numbers.append(a.Z % 200)
-            # %200 is for synthetic atoms and ghost atoms
+
+        # --- Build per-atom symbols from the FDF blocks (authoritative) ---
+        chem = fdf.get("ChemicalSpeciesLabel")
+        sp2sym = {}
+        for row in chem:
+            parts = str(row).split()
+            # expected: species_id  Z  Symbol
+            sid = int(parts[0])
+            sym = parts[2]
+            sp2sym[sid] = sym
+
+        acoords = fdf.get("AtomicCoordinatesAndAtomicSpecies")
+        symbols = []
+        for row in acoords:
+            parts = str(row).split()
+            sid = int(parts[-1])  # last token is species_id
+            symbols.append(sp2sym[sid])
+
         self.atoms = Atoms(
-            numbers=atomic_numbers, cell=self.cell, positions=self.positions
+            symbols=symbols,
+            positions=self.positions,
+            cell=self.cell,
+            pbc=True,
         )
         return geom, self.atoms
 
