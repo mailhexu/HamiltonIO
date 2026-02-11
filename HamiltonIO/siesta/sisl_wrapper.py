@@ -366,7 +366,10 @@ class SislParser:
         self.cell = np.array(geom.lattice.cell)
         atomic_numbers = self._get_correct_atomic_numbers(fdf, geom)
         self.atoms = Atoms(
-            numbers=atomic_numbers, cell=self.cell, positions=self.positions
+            numbers=atomic_numbers,
+            positions=self.positions,
+            cell=self.cell,
+            pbc=True,
         )
         return geom, self.atoms
 
