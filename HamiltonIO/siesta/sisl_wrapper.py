@@ -362,17 +362,118 @@ class SislParser:
 
     def read_geometry(self, fdf):
         geom = fdf.read_geometry()
-        _atoms = geom._atoms
-        atomic_numbers = []
         self.positions = geom.xyz
         self.cell = np.array(geom.lattice.cell)
-        for ia, a in enumerate(_atoms):
-            atomic_numbers.append(a.Z % 200)
-            # %200 is for synthetic atoms and ghost atoms
+        atomic_numbers = self._get_correct_atomic_numbers(fdf, geom)
         self.atoms = Atoms(
-            numbers=atomic_numbers, cell=self.cell, positions=self.positions
+            numbers=atomic_numbers,
+            positions=self.positions,
+            cell=self.cell,
+            pbc=True,
         )
         return geom, self.atoms
+
+    def _get_correct_atomic_numbers(self, fdf, geom):
+        """
+        Get correct atomic numbers by parsing FDF file directly.
+
+        This is a workaround for a sisl bug where species indices are not
+        correctly read when atoms are not in natural order (species 1 first,
+        then species 2, etc.).
+
+        See: https://github.com/zerothi/sisl/pull/971
+        """
+        species_to_Z = self._read_chemical_species_label(fdf)
+        if species_to_Z is None:
+            return self._get_atomic_numbers_from_geom(geom)
+
+        atom_species = self._read_atom_species_indices(fdf)
+        if atom_species is None:
+            return self._get_atomic_numbers_from_geom(geom)
+
+        atomic_numbers = [species_to_Z[sp] for sp in atom_species]
+        return atomic_numbers
+
+    def _get_atomic_numbers_from_geom(self, geom):
+        """Fallback: get atomic numbers from geometry (may be incorrect due to sisl bug)."""
+        _atoms = geom._atoms
+        atomic_numbers = []
+        for ia, a in enumerate(_atoms):
+            atomic_numbers.append(a.Z % 200)
+        return atomic_numbers
+
+    def _read_chemical_species_label(self, fdf):
+        """
+        Read ChemicalSpeciesLabel block from FDF file.
+
+        Returns:
+            dict: mapping from species index to atomic number, or None if not found
+        """
+        import re
+
+        try:
+            with open(fdf.file, "r") as fh:
+                content = fh.read()
+        except Exception:
+            return None
+
+        pattern = (
+            r"%block\s+ChemicalSpeciesLabel\s*\n(.*?)%endblock\s+ChemicalSpeciesLabel"
+        )
+        match = re.search(pattern, content, re.IGNORECASE | re.DOTALL)
+        if not match:
+            return None
+
+        species_to_Z = {}
+        for line in match.group(1).strip().split("\n"):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) >= 2:
+                try:
+                    species_idx = int(parts[0])
+                    Z = int(parts[1])
+                    species_to_Z[species_idx] = Z
+                except ValueError:
+                    continue
+
+        return species_to_Z if species_to_Z else None
+
+    def _read_atom_species_indices(self, fdf):
+        """
+        Read species indices from AtomicCoordinatesAndAtomicSpecies block.
+
+        Returns:
+            list: species index for each atom, or None if not found
+        """
+        import re
+
+        try:
+            with open(fdf.file, "r") as fh:
+                content = fh.read()
+        except Exception:
+            return None
+
+        pattern = r"%block\s+AtomicCoordinatesAndAtomicSpecies\s*\n(.*?)%endblock\s+AtomicCoordinatesAndAtomicSpecies"
+        match = re.search(pattern, content, re.IGNORECASE | re.DOTALL)
+        if not match:
+            return None
+
+        atom_species = []
+        for line in match.group(1).strip().split("\n"):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) >= 4:
+                try:
+                    species_idx = int(parts[3])
+                    atom_species.append(species_idx)
+                except ValueError:
+                    continue
+
+        return atom_species if atom_species else None
 
     def get_nc_path(self, fdf):
         fname = fdf.dir_file(fdf.get("System_Label", default="siesta") + ".nc")
