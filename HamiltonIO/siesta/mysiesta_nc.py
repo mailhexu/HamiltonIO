@@ -21,16 +21,32 @@ class MySiestaNC(ncSileSiesta):
             H = self.read_hamiltonian()
 
         sp = self.groups["SPARSE"]
-        if sp.variables["H_so"].unit != "Ry":
+        if "H_so" in sp.variables:
+            if sp.variables["H_so"].unit != "Ry":
+                raise SileError(
+                    f"{self}.read_soc_hamiltonian requires the stored matrix to be in Ry!"
+                )
+            # H_so has shape (n_spin_components, nnzs)
+            # For SOC, there are 8 spin components
+            n_spin = sp.variables["H_so"].shape[0]
+            for i in range(n_spin):
+                H._csr._D[:, i] = sp.variables["H_so"][i, :] * Ry / eV
+        elif "ReH_so" in sp.variables and "ImH_so" in sp.variables:
+            re = sp.variables["ReH_so"]
+            im = sp.variables["ImH_so"]
+            if re.unit != "Ry" or im.unit != "Ry":
+                raise SileError(
+                    f"{self}.read_soc_hamiltonian requires the stored matrix to be in Ry!"
+                )
+            # ReH_so and ImH_so each have shape (n_spin_components, nnzs)
+            n_spin = re.shape[0]
+            for i in range(n_spin):
+                H._csr._D[:, i] = (re[i, :] + 1j * im[i, :]) * Ry / eV
+        else:
             raise SileError(
-                f"{self}.read_soc_hamiltonian requires the stored matrix to be in Ry!"
+                f"{self}.read_soc_hamiltonian could not find H_so or ReH_so/ImH_so "
+                f"variables in the SPARSE group!"
             )
-
-        # H_so has shape (n_spin_components, nnzs)
-        # For SOC, there are 8 spin components
-        n_spin = sp.variables["H_so"].shape[0]
-        for i in range(n_spin):
-            H._csr._D[:, i] = sp.variables["H_so"][i, :] * Ry / eV
 
         # fix siesta specific notation
         _mat_siesta2sisl(H)

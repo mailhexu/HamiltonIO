@@ -1,12 +1,14 @@
-from collections import defaultdict
 import math
 import re
+from collections import defaultdict
+
 import numpy as np
-from ase.io import read
 from ase.atoms import Atoms
+from ase.io import read
 from ase.units import Angstrom, Bohr
-from .w90_tb_parser import parse_tb_file
+
 from .utils import split_symbol_number
+from .w90_tb_parser import parse_tb_file
 
 unit_dict = {"ANG": Angstrom, "BOHR": Bohr}
 
@@ -105,7 +107,7 @@ def parse_atoms(fname):
     """
     wannier90 hr atoms parser.
 
-    :param fname: relative or absolute path to the file.  str.
+    :param fname: relative or absolute path to file.  str.
     """
     cell = parse_cell(fname)
     atoms_regex = re.compile(

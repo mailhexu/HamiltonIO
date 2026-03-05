@@ -198,8 +198,9 @@ class LCAOHamiltonian(Hamiltonian):
         return Hk, Sk
 
     def solve(self, k, convention=2):
-        Hk, Sk = self.gen_ham(k, convention=convention)
-        return eigh(Hk, Sk)
+        H, S = self.gen_ham(k, convention=convention)
+        evals, evecs = np.linalg.eigh(H, S)
+        return evals, evecs
 
     def solve_all(self, kpts, convention=2):
         nk = len(kpts)
