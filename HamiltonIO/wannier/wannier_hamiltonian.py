@@ -211,7 +211,7 @@ class WannierHam(Hamiltonian):
             for iR, (R, mat) in enumerate(self.data.items()):
                 phase = np.exp(self.R2kfactor * np.dot(k, R))  # / self.R_degens[iR]
                 H = mat * phase
-                Hk += H
+                Hk += H + H.conjugate().T
         elif convention == 1:
             for iR, (R, mat) in enumerate(self.data.items()):
                 phase = (
@@ -219,7 +219,7 @@ class WannierHam(Hamiltonian):
                     # / self.R_degens[iR]
                 )
                 H = mat * phase
-                Hk += H
+                Hk += H + H.conjugate().T
         else:
             raise ValueError("convention should be either 1 or 2.")
         return Hk
