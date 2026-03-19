@@ -211,7 +211,7 @@ class WannierHam(Hamiltonian):
             for iR, (R, mat) in enumerate(self.data.items()):
                 phase = np.exp(self.R2kfactor * np.dot(k, R))  # / self.R_degens[iR]
                 H = mat * phase
-                Hk += H + H.conjugate().T
+                Hk += H
         elif convention == 1:
             for iR, (R, mat) in enumerate(self.data.items()):
                 phase = (
@@ -219,7 +219,7 @@ class WannierHam(Hamiltonian):
                     # / self.R_degens[iR]
                 )
                 H = mat * phase
-                Hk += H + H.conjugate().T
+                Hk += H
         else:
             raise ValueError("convention should be either 1 or 2.")
         return Hk
@@ -651,19 +651,30 @@ class WannierHam(Hamiltonian):
 
 def merge_tbmodels_spin(tbmodel_up, tbmodel_dn):
     """
-    Merge a spin up and spin down model to one spinor model.
+    Merge a spin up and spin down model to one spinor model in interleaved order.
+    Basis order: [orb1_up, orb1_dn, orb2_up, orb2_dn, ...]
     """
+    norb = tbmodel_up.norb
+    nbasis = norb * 2
+
+    # Interleave positions
+    merged_positions = np.zeros((nbasis, 3))
+    merged_positions[::2] = tbmodel_up.positions
+    merged_positions[1::2] = tbmodel_dn.positions
+
     tbmodel = WannierHam(
-        nbasis=tbmodel_up.nbasis * 2,
+        nbasis=nbasis,
         data=None,
-        positions=np.vstack([tbmodel_up.positions, tbmodel_dn.positions]),
+        positions=merged_positions,
         sparse=False,
         ndim=tbmodel_up.ndim,
         nspin=2,
         double_site_energy=2.0,
     )
-    norb = tbmodel.norb
+
     for R in tbmodel_up.data:
-        tbmodel.data[R][:norb, :norb] = tbmodel_up.data[R][:, :]
-        tbmodel.data[R][norb:, norb:] = tbmodel_dn.data[R][:, :]
+        m = np.zeros((nbasis, nbasis), dtype=complex)
+        m[::2, ::2] = tbmodel_up.data[R]
+        m[1::2, 1::2] = tbmodel_dn.data[R]
+        tbmodel.data[R] = m
     return tbmodel
