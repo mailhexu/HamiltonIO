@@ -32,10 +32,11 @@ class LCAOHamiltonian(Hamiltonian):
         so_strength=1.0,
         orth=False,
         orb_dict=None,
+        split_soc=False
     ):
         self.R2kfactor = 2j * np.pi
         self.is_orthogonal = False
-        self.split_soc = False
+        self.split_soc = split_soc
         self._name = "LCAOHamiltonian"
         self._HR = HR
         self.SR = SR
