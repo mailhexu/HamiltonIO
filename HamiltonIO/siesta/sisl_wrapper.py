@@ -38,6 +38,7 @@ class SiestaHamiltonian(LCAOHamiltonian):
         sisl_hamiltonian=None,
         spin_channel=None,
         orb_dict=None,
+        split_soc=False,
     ):
         """
         Hamiltonian object for Siesta
@@ -83,6 +84,7 @@ class SiestaHamiltonian(LCAOHamiltonian):
             nel=nel,
             orth=orth,
             orb_dict=orb_dict,
+            split_soc=split_soc
         )
         self._name = "SIESTA"
         self.is_orthogonal = False
@@ -227,6 +229,7 @@ class SislParser:
                 orth=self.orth,
                 sisl_hamiltonian=self.ham,
                 orb_dict=self.orb_dict,
+                split_soc=self.read_H_soc
             )
             return model
         else:

@@ -73,7 +73,7 @@ def parse_tb_file(filename):
                     ), "Unexpected indices"
                     reH, imH = float(line[2]), float(line[3])
                     # H[iR][m, n] = reH + 1j * imH
-                    H[R][m, n] = (reH + 1j * imH) / 2.0
+                    H[R][m, n] = (reH + 1j * imH)
             io.readline()  # empty line
         # set the onsite term to half
         # np.fill_diagonal(H[(0, 0, 0)], H[(0, 0, 0)].diagonal() / 2.0)

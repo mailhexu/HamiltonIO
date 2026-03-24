@@ -43,9 +43,19 @@ class WannierHam(Hamiltonian):
         self._norb = nbasis // nspin
         self._ndim = ndim
         if R_degens is not None:
-            self.R_degens = R_degens
+            if isinstance(R_degens, (np.ndarray, list)):
+                # If it is a 1D array/list, map it to the R vectors in the data
+                self.R_degens = defaultdict(lambda: 1)
+                for iR, R in enumerate(self.data.keys()):
+                    if iR < len(R_degens):
+                        self.R_degens[R] = R_degens[iR]
+            else:
+                self.R_degens = R_degens
         else:
-            self.R_degens = np.ones(len(self.data.keys()), dtype=int)
+            self.R_degens = defaultdict(lambda: 1)
+            if data is not None:
+                for R in data.keys():
+                    self.R_degens[R] = 1
         if positions is None:
             self._positions = np.zeros((nbasis, self.ndim))
         else:
@@ -195,18 +205,18 @@ class WannierHam(Hamiltonian):
         """
         Hk = np.zeros((self.nbasis, self.nbasis), dtype="complex")
         if convention == 2:
-            for iR, (R, mat) in enumerate(self.data.items()):
-                phase = np.exp(self.R2kfactor * np.dot(k, R)) / self.R_degens[iR]
+            for R, mat in self.data.items():
+                phase = np.exp(self.R2kfactor * np.dot(k, R)) / self.R_degens[R]
                 H = mat * phase
-                Hk += H + H.conjugate().T
+                Hk += H #+ H.conjugate().T
         elif convention == 1:
-            for iR, (R, mat) in enumerate(self.data.items()):
+            for R, mat in self.data.items():
                 phase = (
                     np.exp(self.R2kfactor * np.dot(k, R + self.rjminusri))
-                    / self.R_degens[iR]
+                    / self.R_degens[R]
                 )
                 H = mat * phase
-                Hk += H + H.conjugate().T
+                Hk += H #+ H.conjugate().T
         else:
             raise ValueError("convention should be either 1 or 2.")
         return Hk
@@ -266,55 +276,56 @@ class WannierHam(Hamiltonian):
         """
         on site energies.
         """
-        return self.data[(0, 0, 0)].diagonal() * 2
+        return self.data[(0, 0, 0)].diagonal() #* 2
 
     @property
     def ham_R0(self):
         """
         return hamiltonian at R=0. Note that the data is halfed for R=0.
         """
-        return self.data[(0, 0, 0)] + self.data[(0, 0, 0)].T.conj()
+        return self.data[(0, 0, 0)] #+ self.data[(0, 0, 0)].T.conj()
 
     def get_hamR(self, R):
         """
         return the hamiltonian at H(i, j) at R.
         """
-        nzR = np.nonzero(R)[0]
-        if len(nzR) != 0 and R[nzR[0]] < 0:
-            newR = tuple(-np.array(R))
-            return self.data[newR].T.conj()
-        elif len(nzR) == 0:
-            newR = R
-            mat = self.data[newR]
-            return mat + self.data[(0, 0, 0)].T.conj()
-        else:
-            newR = R
-            return self.data[newR]
+        return self.data[R]
+        #nzR = np.nonzero(R)[0]
+        #if len(nzR) != 0 and R[nzR[0]] < 0:
+        #    newR = tuple(-np.array(R))
+        #    return self.data[newR].T.conj()
+        #elif len(nzR) == 0:
+        #    newR = R
+        #    mat = self.data[newR]
+        #    return mat #+ self.data[(0, 0, 0)].T.conj()
+        #else:
+        #    newR = R
+        #    return self.data[newR]
 
-    @staticmethod
-    def _positive_R_mat(R, mat):
-        nzR = np.nonzero(R)[0]
-        if len(nzR) != 0 and R[nzR[0]] < 0:
-            newR = tuple(np.array(-R))
-            newmat = mat.T.conj()
-        elif len(nzR) == 0:
-            newR = R
-            newmat = (mat + mat.T.conj()) / 2.0
-        else:
-            newR = R
-            newmat = mat
-        return newR, newmat
+    #@staticmethod
+    #def _positive_R_mat(R, mat):
+    #    nzR = np.nonzero(R)[0]
+    #    if len(nzR) != 0 and R[nzR[0]] < 0:
+    #        newR = tuple(np.array(-R))
+    #        newmat = mat.T.conj()
+    #    elif len(nzR) == 0:
+    #        newR = R
+    #        newmat = (mat + mat.T.conj()) / 2.0
+    #    else:
+    #        newR = R
+    #        newmat = mat
+    #    return newR, newmat
 
-    def _to_positive_R(self):
-        """
-        make all the R positive.
-        t(i, j, R) = t(j, i, -R).conj() if R is negative.
-        """
-        new_WannierHam = WannierHam(self.nbasis, sparse=self.sparse)
-        for R, mat in self.data:
-            newR, newmat = self._positive_R_mat(R, mat)
-            new_WannierHam[newR] += newmat
-        return new_WannierHam
+    #def _to_positive_R(self):
+    #    """
+    #    make all the R positive.
+    #    t(i, j, R) = t(j, i, -R).conj() if R is negative.
+    #    """
+    #    new_WannierHam = WannierHam(self.nbasis, sparse=self.sparse)
+    #    for R, mat in self.data:
+    #        newR, newmat = self._positive_R_mat(R, mat)
+    #        new_WannierHam[newR] += newmat
+    #    return new_WannierHam
 
     def shift_position(self, rpos):
         """
@@ -338,15 +349,16 @@ class WannierHam(Hamiltonian):
                 for j in range(self.nbasis):
                     sR = tuple(np.array(R) - shift[i] + shift[j])
                     nzR = np.nonzero(sR)[0]
-                    if len(nzR) != 0 and sR[nzR[0]] < 0:
-                        newR = tuple(-np.array(sR))
-                        d.data[newR][j, i] += v[i, j].conj()
-                    elif len(nzR) == 0:
-                        newR = sR
-                        d.data[newR][i, j] += v[i, j] * 0.5
-                        d.data[newR][j, i] += v[i, j].conj() * 0.5
-                    else:
-                        d.data[sR][i, j] += v[i, j]
+                    d.data[sR][i, j] += v[i, j]
+                    #if len(nzR) != 0 and sR[nzR[0]] < 0:
+                    #    newR = tuple(-np.array(sR))
+                    #    d.data[newR][j, i] += v[i, j].conj()
+                    #elif len(nzR) == 0:
+                    #    newR = sR
+                    #    d.data[newR][i, j] += v[i, j] #* 0.5
+                    #    #d.data[newR][j, i] += v[i, j].conj() * 0.5
+                    #else:
+                    #    d.data[sR][i, j] += v[i, j]
         return d
 
     def save(self, fname):
@@ -549,10 +561,15 @@ def merge_tbmodels_spin(tbmodel_up, tbmodel_dn):
     """
     Merge a spin up and spin down model to one spinor model.
     """
+    posup=tbmodel_up.positions
+    posdn=tbmodel_dn.positions
+    positions = np.vstack([tbmodel_up.positions, tbmodel_dn.positions])
+    positions[::2,:] = posup
+    positions[1::2,:] = posdn
     tbmodel = WannierHam(
         nbasis=tbmodel_up.nbasis * 2,
         data=None,
-        positions=np.vstack([tbmodel_up.positions, tbmodel_dn.positions]),
+        positions=positions,
         sparse=False,
         ndim=tbmodel_up.ndim,
         nspin=2,
@@ -560,6 +577,8 @@ def merge_tbmodels_spin(tbmodel_up, tbmodel_dn):
     )
     norb = tbmodel.norb
     for R in tbmodel_up.data:
-        tbmodel.data[R][:norb, :norb] = tbmodel_up.data[R][:, :]
-        tbmodel.data[R][norb:, norb:] = tbmodel_dn.data[R][:, :]
+        tbmodel.data[R][::2, ::2] = tbmodel_up.data[R][:, :]
+        tbmodel.data[R][1::2, 1::2] = tbmodel_dn.data[R][:, :]
+        if hasattr(tbmodel_up, "R_degens"):
+           tbmodel.R_degens[R] = tbmodel_up.R_degens[R]
     return tbmodel
