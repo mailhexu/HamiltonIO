@@ -131,25 +131,26 @@ hamiltonio-epw epw_to_nc --path ./epw_data \
 ### Band Structure
 
 ```python
-import numpy as np
+from ase.io import read
 from HamiltonIO.abacus import AbacusParser
+from HamiltonIO import plot_band_structure
 
-# Load model
 parser = AbacusParser(outpath="./OUT.material/")
 model = parser.get_models()
+atoms = read("structure.cif")
 
-# High-symmetry path
-k_path = np.array([
-    [0.0, 0.0, 0.0],  # Gamma
-    [0.5, 0.0, 0.0],  # X
-    [0.5, 0.5, 0.0],  # M
-])
+# Automatic ASE high-symmetry path and Matplotlib plot
+bands, ax = plot_band_structure(
+    model,
+    atoms,
+    path=None,          # or e.g. path="GXMG"
+    npoints=300,
+    fermi_energy=5.2,   # optional; shifts plotted energies only
+    filename="bands.png",
+)
 
-# Calculate bands
-bands = []
-for k in k_path:
-    evals, _ = model.solve(k)
-    bands.append(evals)
+# Reuse the raw band data programmatically
+print(bands.kpoints.shape, bands.energies.shape)
 ```
 
 ## Contributing
