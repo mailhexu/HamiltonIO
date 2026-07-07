@@ -1,0 +1,28 @@
+ --- Ionic Step 1 ---
+ # print H matrix in real space H(R)
+ 2 # number of spin directions
+ 1 # spin index
+ 2 # number of localized basis
+ 1 # number of Bravais lattice vector R
+
+ user_defined_lattice
+ 1
+ 2.866 0 0
+ 0 2.866 0
+ 0 0 2.866
+ Fe
+ 1
+ Direct
+ 0 0 0
+
+ #----------------------------------------------------------------------#
+ #                               CSR Format                             #
+ #----------------------------------------------------------------------#
+
+ 0 0 0 3
+ # CSR values
+ 1.0 0.3 2.0
+ # CSR column_indices
+ 0 1 1
+ # CSR row_indptr
+ 0 2 3
