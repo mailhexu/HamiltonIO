@@ -1,5 +1,4 @@
 doc/refs/*.pdf
-tests/data
 
 refs
 
@@ -103,6 +102,7 @@ coverage.xml
 
 # Django stuff:
 *.log
+!tests/data/**/*.log
 local_settings.py
 
 # Flask stuff:
