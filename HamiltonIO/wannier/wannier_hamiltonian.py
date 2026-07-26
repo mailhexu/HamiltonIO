@@ -12,6 +12,28 @@ from HamiltonIO.hamiltonian import Hamiltonian
 
 from .utils import auto_assign_basis_name
 from .w90_parser import parse_atoms, parse_ham, parse_tb, parse_xyz
+from .wsvec_parser import parse_wsvec
+
+# Sentinel for (i, j) pairs with no wsvec entry: one trivial image at the origin,
+# so the scheme-2 formula reduces to the scheme-1 weight for that element.
+_DEFAULT_TLIST = [np.array([0, 0, 0], dtype=int)]
+
+
+def _autodetect_wsvec(path, prefix):
+    """Auto-detect ``{prefix}_wsvec.dat`` and decide the WS scheme (ADR-002).
+
+    Returns ``(use_ws, ws_shifts)``:
+      - wsvec absent                       -> (False, None)
+      - wsvec present, header ``.false.``  -> (False, None); parse_wsvec warns
+      - wsvec present, header ``.true.``   -> (True, shifts dict)
+    """
+    fname = os.path.join(path, prefix + "_wsvec.dat")
+    if not os.path.exists(fname):
+        return False, None
+    result = parse_wsvec(fname)
+    if not result["use_ws_distance"]:
+        return False, None
+    return True, result["shifts"]
 
 
 class WannierHam(Hamiltonian):
@@ -25,6 +47,8 @@ class WannierHam(Hamiltonian):
         ndim=3,
         nspin=1,
         double_site_energy=2.0,
+        use_ws=False,
+        ws_shifts=None,
     ):
         """
         :param nbasis: number of basis.
@@ -34,6 +58,12 @@ class WannierHam(Hamiltonian):
         :param sparse: Bool, whether to use a sparse matrix.
         :param ndim: number of dimensions.
         :param nspin: number of spins.
+        :param use_ws: if True, gen_ham applies the per-orbital-pair Wigner-Seitz
+            correction from ``_wsvec.dat`` (scheme 2). Internal state; set by
+            ``read_from_wannier_dir`` auto-detection, not a user knob (ADR-002).
+        :param ws_shifts: ``{R: {(i, j): ndarray(shape=(N_T, 3), int)}}`` per-pair
+            image translations, as returned by ``parse_wsvec``. Used only when
+            ``use_ws=True``.
         """
         if data is not None:
             self.data = data
@@ -72,6 +102,8 @@ class WannierHam(Hamiltonian):
         self.is_siesta = False
         self.is_orthogonal = True
         self._name = "Wannier"
+        self.use_ws = use_ws
+        self.ws_shifts = ws_shifts
 
     def set_atoms(self, atoms):
         self.atoms = atoms
@@ -172,7 +204,15 @@ class WannierHam(Hamiltonian):
                 data[key][1::2, 1::2] = dtmp[norb:, norb:]
         if has_xyz:
             ind, positions = auto_assign_basis_name(xred, atoms)
-        m = WannierHam(nbasis=nbasis, data=data, positions=xred, R_degens=R_degens)
+        use_ws, ws_shifts = _autodetect_wsvec(path, prefix)
+        m = WannierHam(
+            nbasis=nbasis,
+            data=data,
+            positions=xred,
+            R_degens=R_degens,
+            use_ws=use_ws,
+            ws_shifts=ws_shifts,
+        )
         if has_xyz:
             nm = m.shift_position(positions)
         else:
@@ -218,20 +258,50 @@ class WannierHam(Hamiltonian):
         """
         Hk = np.zeros((self.nbasis, self.nbasis), dtype="complex")
         if convention == 2:
-            for iR, (R, mat) in enumerate(self.data.items()):
-                phase = np.exp(self.R2kfactor * np.dot(k, R))  # / self.R_degens[iR]
-                H = mat * phase
-                Hk += H  # + H.conjugate().T
+            if self.use_ws and self.ws_shifts:
+                return self._gen_ham_scheme2(k)
+            for R, mat in self.data.items():
+                # Wannier90 stores raw H(R) in _hr.dat and divides by the
+                # Wigner-Seitz degeneracy ndegen(R) at transform time
+                # (hamiltonian.F90:478, plot.F90:346). R_degens is dict-keyed
+                # by the R-tuple. Use .get(R, 1) so a missing key (e.g. after
+                # shift_position relabels R-vectors, or a partial dict) falls
+                # back to weight 1 instead of raising. Avoids defaultdict's
+                # silent key-insertion side effect too.
+                phase = np.exp(self.R2kfactor * np.dot(k, R)) / self.R_degens.get(R, 1)
+                Hk += mat * phase
         elif convention == 1:
             for R, mat in self.data.items():
-                phase = (
-                    np.exp(self.R2kfactor * np.dot(k, R + self.rjminusri))
-                    # / self.R_degens[iR]
-                )
-                H = mat * phase
-                Hk += H  # + H.conjugate().T
+                phase = np.exp(
+                    self.R2kfactor * np.dot(k, R + self.rjminusri)
+                ) / self.R_degens.get(R, 1)
+                Hk += mat * phase
         else:
             raise ValueError("convention should be either 1 or 2.")
+        return Hk
+
+    def _gen_ham_scheme2(self, k):
+        """Per-orbital-pair WS Fourier transform (Wannier90 ``use_ws_distance``).
+
+        H_ij(k) = sum_R sum_T exp(i2pi k.(R+T)) / (ndegen(R)*N_T) * H_ij(R),
+        matching Wannier90 ``plot.F90:335-340``. Falls back to scheme-1
+        weighting for any (R,i,j) lacking a ws entry.
+        """
+        Hk = np.zeros((self.nbasis, self.nbasis), dtype="complex")
+        shifts = self.ws_shifts or {}
+        for R, mat in self.data.items():
+            ndegen = self.R_degens.get(R, 1)
+            rblock = shifts.get(R, {})
+            for i in range(self.nbasis):
+                for j in range(self.nbasis):
+                    tlist = rblock.get((i, j), _DEFAULT_TLIST)
+                    n_t = len(tlist)
+                    acc = 0.0 + 0.0j
+                    for t in tlist:
+                        rt = np.asarray(R, dtype=float) + np.asarray(t, dtype=float)
+                        acc += np.exp(self.R2kfactor * np.dot(k, rt))
+                    acc /= ndegen * n_t
+                    Hk[i, j] += mat[i, j] * acc
         return Hk
 
     def solve(self, k, convention=2):
@@ -463,6 +533,18 @@ class WannierHam(Hamiltonian):
                     #    #d.data[newR][j, i] += v[i, j].conj() * 0.5
                     # else:
                     #    d.data[sR][i, j] += v[i, j]
+
+        # Propagate the per-pair WS state, re-keying to the shifted R-vectors.
+        # A hopping at (R, i, j) moves to sR = R - shift[i] + shift[j]; its ws
+        # image list follows. For shift==0 (common: centres already on atoms)
+        # this is the identity. ADR-001, ADR-005.
+        if self.use_ws and self.ws_shifts:
+            d.use_ws = True
+            d.ws_shifts = {}
+            for R, block in self.ws_shifts.items():
+                for (i, j), tlist in block.items():
+                    sR = tuple(np.array(R) - shift[i] + shift[j])
+                    d.ws_shifts.setdefault(sR, {})[(i, j)] = tlist
         return d
 
     def save(self, fname):

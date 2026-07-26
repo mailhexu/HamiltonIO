@@ -274,6 +274,47 @@ lcao_model = LCAOHamiltonian(
 - **R-space storage**: Dictionary format allows efficient sparse storage
 - **File formats**: `_tb.dat` includes centers, `_hr.dat` is more compact
 
+## Wigner-Seitz Weights
+
+Wannier90 stores the **raw** real-space Hamiltonian in `_hr.dat` together with a
+separate `ndegen(R)` Wigner-Seitz degeneracy array. The Fourier transform must
+divide by `ndegen(R)`:
+
+$$
+H_{ij}(\mathbf{k}) = \sum_{\mathbf{R}} \frac{e^{i2\pi\mathbf{k}\cdot\mathbf{R}}}{\text{ndegen}(\mathbf{R})}\, H_{ij}(\mathbf{R})
+$$
+
+`HamiltonIO.WannierHam.gen_ham` applies this automatically. Two schemes are
+supported, selected by **auto-detection** (no user flag needed):
+
+| Scheme | When | Formula |
+|--------|------|---------|
+| 1 (global `ndegen`) | No `_wsvec.dat`, or header `.false.` | phase divided by `ndegen(R)` |
+| 2 (per-orbital `_wsvec.dat`) | `{prefix}_wsvec.dat` present, header `.true.` | per-(i,j) sum over image translations `T`, divided by `ndegen(R)·N_T` |
+
+Scheme 2 matches Wannier90 `use_ws_distance` and matters when Wannier centres sit
+off high-symmetry positions (e.g. O-2p in SrMnO3, disentangled WFs). It is enabled
+automatically whenever `read_from_wannier_dir` finds a `.true.` wsvec file.
+
+### Validation helper
+
+```python
+from HamiltonIO.wannier import validate_ws_weights
+
+res = validate_ws_weights("wannier90_hr.dat", mp_grid=(9, 9, 1),
+                          wsvec_path="wannier90_wsvec.dat")
+assert res["sum_rule_ok"]          # sum_R 1/ndegen(R) == Nk1*Nk2*Nk3
+print(res["ws_stats"])             # {min, max, mean} per-pair N_T
+```
+
+### Migration note (2026-07)
+
+Prior to the ws-weights work, `gen_ham` did **not** divide by `ndegen` (the line
+was commented out). Wannier90-derived band structures and TB2J exchange constants
+will therefore **differ from previous HamiltonIO/TB2J versions** — the new values
+are correct. If you need the old (buggy) behaviour for comparison, you must use a
+pre-2026-07 HamiltonIO.
+
 ## Common Issues
 
 - **Gauge consistency**: Ensure consistent gauge between Wannier90 and analysis
