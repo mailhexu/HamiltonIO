@@ -30,7 +30,9 @@ class MySiestaNC(ncSileSiesta):
             # For SOC, there are 8 spin components
             n_spin = sp.variables["H_so"].shape[0]
             for i in range(n_spin):
+                print(f"Reading spin component {i} of {n_spin}")
                 H._csr._D[:, i] = sp.variables["H_so"][i, :] * Ry / eV
+            _mat_siesta2sisl(H)
         elif "ReH_so" in sp.variables and "ImH_so" in sp.variables:
             re = sp.variables["ReH_so"]
             im = sp.variables["ImH_so"]
@@ -57,10 +59,12 @@ class MySiestaNC(ncSileSiesta):
             H._csr._D[:, 1] = re[1, :] * scale  # real(H22)
             H._csr._D[:, 2] = re[2, :] * scale  # real(H12)
             H._csr._D[:, 3] = -im[2, :] * scale  # -imag(H12)
+            # H._csr._D[:, 3] = im[2, :] * scale  # -imag(H12)
             H._csr._D[:, 4] = im[0, :] * scale  # imag(H11)
             H._csr._D[:, 5] = im[1, :] * scale  # imag(H22)
             H._csr._D[:, 6] = re[3, :] * scale  # real(H21)
             H._csr._D[:, 7] = im[3, :] * scale  # imag(H21)
+            # _mat_siesta2sisl(H)
         else:
             raise SileError(
                 f"{self}.read_soc_hamiltonian could not find H_so or ReH_so/ImH_so "
@@ -68,7 +72,6 @@ class MySiestaNC(ncSileSiesta):
             )
 
         # fix siesta specific notation
-        _mat_siesta2sisl(H)
         # H._csr._D[:, 3] *= -1
         # H._csr._D[:, 7] *= -1
         return H.transpose(spin=False, sort=kwargs.get("sort", True))

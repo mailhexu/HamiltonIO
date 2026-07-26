@@ -5,6 +5,7 @@ from HamiltonIO.bandstructure import (
     make_band_path,
     plot_band_structure,
 )
+from HamiltonIO.builder import OrbitalSpec, TightBindingBuilder, TightBindingModelData
 from HamiltonIO.hamiltonian import Hamiltonian
 
 try:
@@ -17,7 +18,7 @@ try:
 except ImportError:
     WannierHam = None
 
-__version__ = "0.2.5"
+__version__ = "0.3.8"
 
 # Build __all__ dynamically based on available modules
 __all__ = [
@@ -27,6 +28,9 @@ __all__ = [
     "calculate_band_structure",
     "make_band_path",
     "plot_band_structure",
+    "TightBindingBuilder",
+    "TightBindingModelData",
+    "OrbitalSpec",
     "__version__",
 ]
 if SiestaHam is not None:

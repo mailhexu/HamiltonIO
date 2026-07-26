@@ -21,6 +21,7 @@ Welcome to HamiltonIO's documentation!
    siesta
    abacus
    epw
+   src/builder.md
    distance_analysis
    src/ReleaseNotes.md
 
@@ -29,4 +30,3 @@ Indices and tables
 ==================
 
 * :ref:`genindex`
-

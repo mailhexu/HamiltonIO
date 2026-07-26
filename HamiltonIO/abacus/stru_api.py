@@ -8,10 +8,6 @@ Modified on Wed Aug 01 11:44:51 2022
 @author: Ji Yu-yang
 """
 
-import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
-
-
 import os
 import re
 import shutil
@@ -23,6 +19,8 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointDFTCalculator, arrays_to_kpoints
 from ase.units import Bohr, GPa, Hartree, Rydberg, _me, mol
 from ase.utils import lazymethod, lazyproperty, reader, writer
+
+warnings.simplefilter(action="ignore", category=FutureWarning)
 
 _re_float = r"[-+]?\d+\.*\d*(?:[Ee][-+]\d+)?"
 AU_to_MASS = mol * _me * 1e3
@@ -1158,14 +1156,18 @@ class AbacusOutHeaderChunk(AbacusOutChunk):
     @lazyproperty
     def n_bands(self):
         """The number of Kohn-Sham states for the chunk"""
-        pattern_str = r"NBANDS = (\d+)"
+        # regex broadened to support both old (v3.5.x: "NBANDS = N")
+        # and new (v3.11.0+: "Number of electronic states (NBANDS) = N") ABACUS log formats.
+        pattern_str = r"NBANDS\)?\s*=\s*(\d+)"
 
         return int(self.parse_scalar(pattern_str))
 
     @lazyproperty
     def n_electrons(self):
         """The number of valence electrons for the chunk"""
-        pattern_str = r"AUTOSET number of electrons:  = (\d+)"
+        # regex broadened to support both old (v3.5.x: "AUTOSET number of electrons:  = N")
+        # and new (v3.11.0+: "Autoset the number of electrons = N") ABACUS log formats.
+        pattern_str = r"(?i)autoset(?:\s+the)?\s+number of electrons:?\s*=\s*(\d+)"
         res = self.parse_scalar(pattern_str)
         if res:
             return int(res)
