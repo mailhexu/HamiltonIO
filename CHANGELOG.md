@@ -34,3 +34,16 @@
 `gen_ham` `convention=1` has a separate pre-existing shape bug
 (`np.dot(k, R + rjminusri)` raises for nbasis > 0), unrelated to ws weights.
 `convention=2` (the default, used by TB2J) is correct.
+
+### EPW Wigner-Seitz metadata (EPW interface)
+
+- `Epmat.read_Rvectors` now preserves the full per-pair WS degeneracy arrays
+  (`ndegen_k_full`, `ndegen_q_full`, `ndegen_g_full`) from `wigner.fmt`,
+  instead of flattening to 1D and discarding the per-pair info. EPW pre-bakes
+  WS weights into `.epmatwp` at build time (`wigner.f90:919`), so these are
+  metadata/validation only — no physics change.
+- `Epmat.use_ws` flag surfaces whether the EPW data used per-pair WS
+  (`dims > 1`) or global WS (`dims = dims2 = 1`).
+- New `validate_epw_ws_weights(epmat, mp_grid)` helper: checks the WS sum rule
+  per channel and reports ndegen statistics (min/max/mean, zero fraction).
+- The 1D `ndegen_*` arrays remain for backwards compatibility.

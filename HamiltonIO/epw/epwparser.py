@@ -565,6 +565,15 @@ class Epmat:
     ndegen_k: np.ndarray = field(default=None)
     ndegen_q: np.ndarray = field(default=None)
     ndegen_g: np.ndarray = field(default=None)
+    # Full per-pair WS degeneracy arrays from wigner.fmt, shape
+    # ndegen_k_full(nRk, dims, dims), ndegen_q_full(nRq, dims2, dims2),
+    # ndegen_g_full(nRg, dims, dims2). EPW pre-bakes these into .epmatwp at
+    # build time (wigner.f90:919), so they are metadata/validation only.
+    # The 1D ndegen_* above are the [:, 0, 0] slice for backwards compat.
+    ndegen_k_full: np.ndarray = field(default=None)
+    ndegen_q_full: np.ndarray = field(default=None)
+    ndegen_g_full: np.ndarray = field(default=None)
+    use_ws: bool = field(default=None)
     Hwann: np.ndarray = field(default=None)
     Rlist: np.ndarray = field(default=None)
     epmat_wann: np.ndarray = field(default=None)
@@ -577,8 +586,10 @@ class Epmat:
     def read_Rvectors(self, path, fname="wigner.fmt"):
         """Read R vectors from a Wigner-Seitz vector file.
 
-        This method uses the modern wigner.py implementation to read
-        Wigner-Seitz vectors in the new format.
+        Reads the full per-pair WS degeneracy arrays from ``wigner.fmt`` and
+        stores both the full arrays (``ndegen_*_full``) and a 1D
+        backwards-compatible view (``ndegen_*`` = the ``[:, 0, 0]`` slice).
+        Sets ``use_ws`` from ``dims > 1`` (EPW's marker for per-pair WS).
 
         Parameters
         ----------
@@ -588,31 +599,35 @@ class Epmat:
             Name of the Wigner-Seitz vector file, by default "wigner.fmt"
             For legacy format, use "WSVecDeg.dat" and read_WSVec_deprecated()
         """
-        fullfname = os.path.join(path, fname)
+        from HamiltonIO.epw.wigner import WignerData
 
-        # Use the modern read_WSVec function which leverages wigner.py
-        (
-            dims,
-            dims2,
-            self.nRk,
-            self.nRq,
-            self.nRg,
-            self.Rk,
-            self.Rq,
-            self.Rg,
-            self.ndegen_k,
-            self.ndegen_q,
-            self.ndegen_g,
-        ) = read_WSVec(fullfname)
+        fullfname = os.path.join(path, fname)
+        wigner_data = WignerData.from_file(fullfname)
+
+        self.dims = wigner_data.dims
+        self.dims2 = wigner_data.dims2
+        self.nRk = wigner_data.nrr_k
+        self.nRq = wigner_data.nrr_q
+        self.nRg = wigner_data.nrr_g
+        self.Rk = wigner_data.irvec_k
+        self.Rq = wigner_data.irvec_q
+        self.Rg = wigner_data.irvec_g
+
+        # Full per-pair arrays (authoritative).
+        self.ndegen_k_full = wigner_data.ndegen_k
+        self.ndegen_q_full = wigner_data.ndegen_q
+        self.ndegen_g_full = wigner_data.ndegen_g
+        # 1D backwards-compatible view: the (0, 0) pair slice.
+        self.ndegen_k = wigner_data.ndegen_k[:, 0, 0]
+        self.ndegen_q = wigner_data.ndegen_q[:, 0, 0]
+        self.ndegen_g = wigner_data.ndegen_g[:, 0, 0]
+        # EPW sets dims=nbndsub, dims2=nat when use_ws=.true.; else dims=dims2=1.
+        self.use_ws = self.dims > 1
 
         # Create dictionaries for fast R-vector lookup
         self.Rkdict = {tuple(self.Rk[i]): i for i in range(self.nRk)}
         self.Rqdict = {tuple(self.Rq[i]): i for i in range(self.nRq)}
         self.Rgdict = {tuple(self.Rg[i]): i for i in range(self.nRg)}
-
-        # Store dimensions for reference
-        self.dims = dims
-        self.dims2 = dims2
 
     def read_Wannier_Hamiltonian(self, path, fname):
         """Read Wannier Hamiltonian from file.
@@ -1018,3 +1033,50 @@ def test_read_data():
     print(dv2)
     print("-" * 10)
     print(dv1 - dv2)
+
+
+def validate_epw_ws_weights(epmat, mp_grid=None):
+    """Validate EPW Wigner-Seitz weights from an Epmat's wigner.fmt data.
+
+    EPW pre-bakes the WS weights into ``.epmatwp`` at build time
+    (``wigner.f90:919``), so the per-pair ndegen stored here is metadata for
+    validation, not a physics input. This helper checks the WS sum rule and
+    reports per-channel ndegen statistics.
+
+    Args:
+        epmat: an ``Epmat`` with ``read_Rvectors`` already called (so
+            ``ndegen_*_full`` and ``use_ws`` are populated).
+        mp_grid: optional ``(Nk1, Nk2, Nk3)``. If given, the sum rule
+            ``sum_R 1/ndegen == Nk1*Nk2*Nk3`` is checked per channel.
+
+    Returns:
+        dict with ``use_ws`` and per-channel (``k``, ``q``, ``g``) stats:
+        ``sum_rule_value``, ``sum_rule_expected`` (or None),
+        ``sum_rule_ok`` (or None), ``min``, ``max``, ``mean``, ``zero_fraction``.
+    """
+    channels = {
+        "k": epmat.ndegen_k_full,
+        "q": epmat.ndegen_q_full,
+        "g": epmat.ndegen_g_full,
+    }
+    expected = int(np.prod(mp_grid)) if mp_grid is not None else None
+    out = {"use_ws": bool(epmat.use_ws)}
+    for name, arr in channels.items():
+        if arr is None:
+            continue
+        flat = arr.astype(float)
+        nz = flat[flat > 0]
+        total = float(np.sum(1.0 / flat)) if flat.size else 0.0
+        zero_frac = float(np.mean(flat == 0)) if flat.size else 0.0
+        out[name] = {
+            "sum_rule_value": total,
+            "sum_rule_expected": expected,
+            "sum_rule_ok": bool(np.isclose(total, expected, atol=1e-6))
+            if expected is not None
+            else None,
+            "min": int(nz.min()) if nz.size else 0,
+            "max": int(nz.max()) if nz.size else 0,
+            "mean": float(nz.mean()) if nz.size else 0.0,
+            "zero_fraction": zero_frac,
+        }
+    return out
