@@ -43,7 +43,8 @@ class MySiestaNC(ncSileSiesta):
             # ReH_so and ImH_so are stored with Fortran shape (nnzs, spin_cmplx=4),
             # which in Python/NumPy (row-major) appears as (spin_cmplx=4, nnzs).
             # The 4 complex spin components follow CVEC4 ordering:
-            #   cvec4(0) = H11,  cvec4(1) = H22,  cvec4(2) = H12,  cvec4(3) = H21
+            #   cvec4(0) = H11,  cvec4(1) = H22,  cvec4(2) = H12,
+            #   cvec4(3) = conj(H21)
             #
             # Reconstruct VEC8 (8 real spin components) per m_spin_conventions.F90:
             #   D[:,0] = real(H11)   = re[0,:]
@@ -53,7 +54,7 @@ class MySiestaNC(ncSileSiesta):
             #   D[:,4] = imag(H11)   = im[0,:]
             #   D[:,5] = imag(H22)   = im[1,:]
             #   D[:,6] = real(H21)   = re[3,:]
-            #   D[:,7] = imag(H21)   = im[3,:]
+            #   D[:,7] = imag(H21)   = -im[3,:]
             scale = Ry / eV
             H._csr._D[:, 0] = re[0, :] * scale  # real(H11)
             H._csr._D[:, 1] = re[1, :] * scale  # real(H22)
@@ -63,7 +64,7 @@ class MySiestaNC(ncSileSiesta):
             H._csr._D[:, 4] = im[0, :] * scale  # imag(H11)
             H._csr._D[:, 5] = im[1, :] * scale  # imag(H22)
             H._csr._D[:, 6] = re[3, :] * scale  # real(H21)
-            H._csr._D[:, 7] = im[3, :] * scale  # imag(H21)
+            H._csr._D[:, 7] = -im[3, :] * scale  # imag(H21)
             # _mat_siesta2sisl(H)
         else:
             raise SileError(

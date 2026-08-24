@@ -200,7 +200,7 @@ class LCAOHamiltonian(Hamiltonian):
 
     def solve(self, k, convention=2):
         H, S = self.gen_ham(k, convention=convention)
-        evals, evecs = np.linalg.eigh(H, S)
+        evals, evecs = eigh(H, S)
         return evals, evecs
 
     def solve_all(self, kpts, convention=2):
