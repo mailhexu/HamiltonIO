@@ -1,6 +1,7 @@
 import numpy as np
 from ase import Atoms
 from scipy.linalg import eigh
+
 from HamiltonIO.hamiltonian import Hamiltonian
 from HamiltonIO.mathutils.kR_convert import R_to_onek
 
@@ -17,6 +18,7 @@ class LawafHamiltonian(Hamiltonian):
         wann_centers: centers of Wannier functions.
         wann_names: names of Wannier functions.
     """
+
     def __init__(
         self,
         Rlist=None,
@@ -29,18 +31,14 @@ class LawafHamiltonian(Hamiltonian):
         atoms=None,
         kpts=None,
         kweights=None,
-        is_orthogonal =True,
+        is_orthogonal=True,
     ):
-        if wannR is not None:
-            norb = wannR.shape[2]
-        else:
-            norb = HwannR.shape[1]
         super().__init__(
             _name="LaWaF Electron Wannier",
-            is_orthogonal=is_orthogonal, 
+            is_orthogonal=is_orthogonal,
             R2kfactor=2 * np.pi,
             nspin=1,
-            #norb=wannR.shape[2],
+            # norb=wannR.shape[2],
         )
         self.Rlist = Rlist
         self.Rdeg = Rdeg
@@ -59,7 +57,6 @@ class LawafHamiltonian(Hamiltonian):
         else:
             self.nwann = self.HwannR.shape[1]
 
-
     def save_pickle(self, filename):
         """
         save the LWF to pickle file.
@@ -75,6 +72,7 @@ class LawafHamiltonian(Hamiltonian):
         load the LWF from pickle file.
         """
         import pickle
+
         with open(filename, "rb") as f:
             return pickle.load(f)
 
@@ -92,7 +90,6 @@ class LawafHamiltonian(Hamiltonian):
                         f.write(f"{j:} {self.wannR[iR, j, i]}\n")
                     f.write("\n")
                 f.write("\n")
-
 
     def write_to_netcdf(self, filename):
         """
@@ -145,7 +142,7 @@ class LawafHamiltonian(Hamiltonian):
         HwannR = ds["Hwann_R"].values[0] + 1j * ds["Hwann_R"].values[1]
 
         ds_atoms = xr.open_dataset(filename, group="atoms")
-        atoms = Atoms(
+        _atoms = Atoms(
             positions=ds_atoms["positions"].values,
             masses=ds_atoms["masses"].values,
             cell=ds_atoms["cell"].values,
@@ -194,8 +191,14 @@ class LawafHamiltonian(Hamiltonian):
         """
         get the Hamiltonian at k-point.
         """
-        Hk = R_to_onek(kpt, self.Rlist, self.HwannR)
+        Rdeg = self._rdeg_as()
+        Hk = R_to_onek(kpt, self.Rlist, self.HwannR * Rdeg[:, None, None])
         return Hk
+
+    def _rdeg_as(self):
+        if self.Rdeg is None:
+            return np.ones(len(self.Rlist))
+        return np.asarray(self.Rdeg)
 
     def get_Sk(self, kpt):
         """
@@ -204,7 +207,9 @@ class LawafHamiltonian(Hamiltonian):
         if self.is_orthogonal:
             Sk = None
         else:
-            Sk = R_to_onek(kpt, self.Rlist, self.SwannR)
+            Sk = R_to_onek(
+                kpt, self.Rlist, self.SwannR * self._rdeg_as()[:, None, None]
+            )
         return Sk
 
     def solve_k(self, kpt):
@@ -232,13 +237,13 @@ class LawafHamiltonian(Hamiltonian):
         return np.array(evals), np.array(evecs)
 
     def HS_and_eigen(self, kpts):
-        Hks=[]
+        Hks = []
         if self.is_orthogonal:
             Sks = None
         else:
-            Sks=[]
-        evals=[]
-        evecs=[]
+            Sks = []
+        evals = []
+        evecs = []
         for kpt in kpts:
             Hk = self.get_Hk(kpt)
             Hks.append(Hk)

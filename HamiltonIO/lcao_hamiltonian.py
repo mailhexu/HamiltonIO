@@ -32,7 +32,7 @@ class LCAOHamiltonian(Hamiltonian):
         so_strength=1.0,
         orth=False,
         orb_dict=None,
-        split_soc=False
+        split_soc=False,
     ):
         self.R2kfactor = 2j * np.pi
         self.is_orthogonal = False
@@ -200,7 +200,7 @@ class LCAOHamiltonian(Hamiltonian):
 
     def solve(self, k, convention=2):
         H, S = self.gen_ham(k, convention=convention)
-        evals, evecs = np.linalg.eigh(H, S)
+        evals, evecs = eigh(H, S)
         return evals, evecs
 
     def solve_all(self, kpts, convention=2):
