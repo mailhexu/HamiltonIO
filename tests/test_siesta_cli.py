@@ -11,8 +11,15 @@ How to run:
 
 import os
 import tempfile
-import pytest
 from pathlib import Path
+
+import pytest
+
+
+def test_sisl_wrapper_compatibility_export():
+    from HamiltonIO.siesta import SiestaHamiltonian, SislWrapper
+
+    assert SislWrapper is SiestaHamiltonian
 
 
 @pytest.fixture
@@ -64,7 +71,7 @@ def test_analyze_intra_atomic_function_with_output(bcc_fe_nonpol_path):
         output_file = f.name
 
     try:
-        ham = analyze_intra_atomic(
+        analyze_intra_atomic(
             fdf_file=bcc_fe_nonpol_path,
             atoms=[0],
             read_soc=False,
@@ -129,7 +136,7 @@ def test_analyze_intra_atomic_soc(bcc_fe_soc_path):
         output_file = f.name
 
     try:
-        ham = analyze_intra_atomic(
+        analyze_intra_atomic(
             fdf_file=bcc_fe_soc_path,
             atoms=[0],
             read_soc=False,
@@ -153,8 +160,9 @@ def test_analyze_intra_atomic_soc(bcc_fe_soc_path):
 
 def test_cli_main_function_help():
     """Test CLI main function with --help."""
-    from HamiltonIO.siesta.cli import main
     import sys
+
+    from HamiltonIO.siesta.cli import main
 
     # Save original argv
     original_argv = sys.argv
@@ -174,8 +182,9 @@ def test_cli_main_function_help():
 
 def test_cli_intra_atomic_command_help():
     """Test CLI intra-atomic subcommand with --help."""
-    from HamiltonIO.siesta.cli import main
     import sys
+
+    from HamiltonIO.siesta.cli import main
 
     original_argv = sys.argv
 
@@ -191,8 +200,9 @@ def test_cli_intra_atomic_command_help():
 
 def test_cli_version():
     """Test CLI --version flag."""
-    from HamiltonIO.siesta.cli import main
     import sys
+
+    from HamiltonIO.siesta.cli import main
 
     original_argv = sys.argv
 
@@ -209,8 +219,9 @@ def test_cli_version():
 
 def test_cli_intra_atomic_command_basic(bcc_fe_nonpol_path):
     """Test CLI intra-atomic command basic usage."""
-    from HamiltonIO.siesta.cli import main
     import sys
+
+    from HamiltonIO.siesta.cli import main
 
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
         output_file = f.name
@@ -243,8 +254,9 @@ def test_cli_intra_atomic_command_basic(bcc_fe_nonpol_path):
 
 def test_cli_invalid_fdf_file():
     """Test CLI with invalid FDF file."""
-    from HamiltonIO.siesta.cli import main
     import sys
+
+    from HamiltonIO.siesta.cli import main
 
     original_argv = sys.argv
 
