@@ -97,25 +97,32 @@ class LawafHamiltonian(Hamiltonian):
         """
         import xarray as xr
 
-        ds = xr.Dataset(
-            {
-                "factor": self.factor,
-                "Rlist": (["nR", "dim"], self.Rlist),
-                "Rdeg": (["nR"], self.Rdeg),
-                "wannR": (
-                    ["ncplx", "nR", "nbasis", "nwann"],
-                    np.stack([np.real(self.wannR), np.imag(self.wannR)], axis=0),
-                ),
-                "Hwann_R": (
-                    ["ncplx", "nR", "nwann", "nwann"],
-                    np.stack([np.real(self.HwannR), np.imag(self.HwannR)], axis=0),
-                ),
-                "kpts": (["nkpt", "dim"], self.kpts),
-                "kweights": (["nkpt"], self.kweights),
-                "wann_centers": (["nwann", "dim"], self.wann_centers),
-                "wann_names": (["nwann"], self.wann_names),
-            }
-        )
+        data_vars = {
+            "Rlist": (["nR", "dim"], self.Rlist),
+            "Rdeg": (["nR"], self.Rdeg),
+            "wannR": (
+                ["ncplx", "nR", "nbasis", "nwann"],
+                np.stack([np.real(self.wannR), np.imag(self.wannR)], axis=0),
+            ),
+            "Hwann_R": (
+                ["ncplx", "nR", "nwann", "nwann"],
+                np.stack([np.real(self.HwannR), np.imag(self.HwannR)], axis=0),
+            ),
+        }
+        for key, val in (
+            ("kpts", (["nkpt", "dim"], self.kpts)),
+            ("kweights", (["nkpt"], self.kweights)),
+            ("wann_centers", (["nwann", "dim"], self.wann_centers)),
+            ("wann_names", (["nwann"], self.wann_names)),
+        ):
+            if val[1] is not None:
+                data_vars[key] = val
+        if self.SwannR is not None:
+            data_vars["Swann_R"] = (
+                ["ncplx", "nR", "nwann", "nwann"],
+                np.stack([np.real(self.SwannR), np.imag(self.SwannR)], axis=0),
+            )
+        ds = xr.Dataset(data_vars)
         ds.to_netcdf(filename, group="wannier", mode="w")
 
         atoms = self.atoms
@@ -140,13 +147,16 @@ class LawafHamiltonian(Hamiltonian):
         ds = xr.open_dataset(filename, group="wannier")
         wannR = ds["wannR"].values[0] + 1j * ds["wannR"].values[1]
         HwannR = ds["Hwann_R"].values[0] + 1j * ds["Hwann_R"].values[1]
-
+        if "Swann_R" in ds.variables:
+            SwannR = ds["Swann_R"].values[0] + 1j * ds["Swann_R"].values[1]
+        else:
+            SwannR = None
         ds_atoms = xr.open_dataset(filename, group="atoms")
         _atoms = Atoms(
             positions=ds_atoms["positions"].values,
             masses=ds_atoms["masses"].values,
             cell=ds_atoms["cell"].values,
-            atomic_numbers=ds_atoms["atomic_numbers"].values,
+            numbers=ds_atoms["atomic_numbers"].values,
         )
 
         return cls(
@@ -154,10 +164,17 @@ class LawafHamiltonian(Hamiltonian):
             Rdeg=ds["Rdeg"].values,
             wannR=wannR,
             HwannR=HwannR,
-            kpts=ds["kpts"].values,
-            kweights=ds["kweights"].values,
-            wann_centers=ds["wann_centers"].values,
-            wann_names=ds["wann_names"].values,
+            SwannR=SwannR,
+            atoms=_atoms,
+            kpts=ds["kpts"].values if "kpts" in ds.variables else None,
+            kweights=ds["kweights"].values if "kweights" in ds.variables else None,
+            wann_centers=(
+                ds["wann_centers"].values if "wann_centers" in ds.variables else None
+            ),
+            wann_names=(
+                list(ds["wann_names"].values) if "wann_names" in ds.variables else None
+            ),
+            is_orthogonal=(SwannR is None),
         )
 
     def remove_phase(self, Hk, k):
@@ -237,26 +254,26 @@ class LawafHamiltonian(Hamiltonian):
         return np.array(evals), np.array(evecs)
 
     def HS_and_eigen(self, kpts):
-        Hks = []
+        """
+        return (Hk, Sk, evals, evecs) for all k-points. Sk is None for an
+        orthogonal basis; otherwise the eigenvectors are S-orthonormal.
+        """
+        nk = len(kpts)
+        hams = np.zeros((nk, self.nwann, self.nwann), dtype=complex)
         if self.is_orthogonal:
             Sks = None
         else:
-            Sks = []
-        evals = []
-        evecs = []
-        for kpt in kpts:
-            Hk = self.get_Hk(kpt)
-            Hks.append(Hk)
-            if not self.is_orthogonal:
-                Sk = self.get_Sk(kpt)
-                Sks.append(Sk)
-            evals, evecs = eigh(Hk)
-            evals.append(evals)
-            evecs.append(evecs)
-        Hks = np.array(Hks)
-        evals = np.array(evals)
-        evecs = np.array(evecs)
-        return Hk, Sks, evals, evecs
+            Sks = np.zeros((nk, self.nwann, self.nwann), dtype=complex)
+        evals = np.zeros((nk, self.nwann), dtype=float)
+        evecs = np.zeros((nk, self.nwann, self.nwann), dtype=complex)
+        for ik, k in enumerate(kpts):
+            Hk = self.get_Hk(k)
+            Sk = self.get_Sk(k)
+            hams[ik] = Hk
+            if Sks is not None:
+                Sks[ik] = Sk
+            evals[ik], evecs[ik] = eigh(Hk, Sk)
+        return hams, Sks, evals, evecs
 
     def HSE_k(self, kpt):
         Hk = self.get_Hk(kpt)
