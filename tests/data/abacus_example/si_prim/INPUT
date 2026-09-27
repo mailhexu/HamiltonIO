@@ -1,0 +1,16 @@
+INPUT_PARAMETERS
+suffix Si_prim
+calculation scf
+esolver_type ksdft
+basis_type lcao
+dft_functional pbe
+ecutwfc 100
+scf_thr 1e-8
+smearing_method gauss
+smearing_sigma 0.005
+symmetry 0
+pseudo_dir ../refs
+orbital_dir ../refs
+out_mat_hs2 1
+out_mat_hs 1
+out_band 1

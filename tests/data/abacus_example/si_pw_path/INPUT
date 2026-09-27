@@ -1,0 +1,14 @@
+INPUT_PARAMETERS
+suffix Si_pw
+calculation nscf
+esolver_type ksdft
+basis_type pw
+dft_functional pbe
+ecutwfc 10
+nbands 16
+smearing_method fixed
+init_chg file
+symmetry 0
+pseudo_dir ../refs
+out_wfc_pw 1
+out_band 1

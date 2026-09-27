@@ -9,6 +9,7 @@ from HamiltonIO.gpaw.gpaw_api import (
     read_gpaw_calculator,
     read_gpaw_pickle,
 )
+from HamiltonIO.gpaw.gpaw_unfold import GpawLcaoModel, GpawPWData, GpawPWParser
 from HamiltonIO.gpaw.gpaw_wrapper import GPAWParser, GPAWWrapper
 from HamiltonIO.gpaw.orbital_api import GPAWOrbital, parse_gpaw_orbital
 
@@ -20,4 +21,7 @@ __all__ = [
     "read_gpaw_pickle",
     "read_gpaw_calculator",
     "get_hr_sr_from_calc",
+    "GpawLcaoModel",
+    "GpawPWParser",
+    "GpawPWData",
 ]
