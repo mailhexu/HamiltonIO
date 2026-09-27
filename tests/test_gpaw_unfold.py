@@ -56,7 +56,7 @@ def pw_data():
 def test_lcao_table_shapes(prim_calc_and_model):
     _, calc, model = prim_calc_and_model
     assert len(model.atoms) == 2
-    assert model.kgrid == (4, 4, 4)
+    assert model.kgrid == (16, 16, 16)
     assert next(iter(model.SR.values())).shape == (8, 8)
     # Nyquist shells are paired at +/-N/2 so the real-space tables
     # remain Hermitian even between the sampled k-points.
@@ -110,6 +110,28 @@ def test_lcao_convention2_phases(prim_calc_and_model):
     h2, s2 = model.hs_and_eigen(-k)
     assert np.abs(h1 - h2.conj()).max() < 1e-8
     assert np.abs(s1 - s2.conj()).max() < 1e-8
+
+
+def test_lcao_nyquist_shell_resolved(prim_calc_and_model):
+    """The sampling grid resolves the real-space range of the tables.
+
+    A uniform (n,n,n) grid cannot disentangle the +n/2 and -n/2 shells;
+    whatever sits there leaks into every interpolated hs_and_eigen(k)
+    off the grid.  For the committed primitive fixture (16x16x16) the
+    Nyquist-shell table weight is ~1e-14 of the on-site block, so the
+    interpolation is exact to numerical precision at momenta between
+    the grid points.  (A (4,4,4) primitive grid carries ~1e-1 eV there
+    and drifts by ~eV - the story-017 reference-band defect.)
+    """
+    _, _, model = prim_calc_and_model
+    dims = np.asarray(model.kgrid)
+    ts = sorted(model.HR)
+    top = max(np.abs(model.HR[t]).max() for t in ts)
+    for i, n in enumerate(dims):
+        if n % 2:
+            continue
+        nyq = max(np.abs(model.HR[t]).max() for t in ts if abs(t[i]) == n // 2)
+        assert nyq < 1e-6 * top, (i, nyq, top)
 
 
 def test_pw_data_shapes(pw_data):

@@ -163,6 +163,27 @@ class TestConvModel:
         assert model.efermi == pytest.approx(eig[16], abs=1.5)
 
 
+def test_pw_efermi_from_nscf_log():
+    """PW parser reads the Fermi energy (eV column) from the run log.
+
+    The si_pw_path fixture is an nscf band run: only
+    ``running_nscf.log`` exists, and it carries both the ``E_Fermi
+    <Ry> <eV>`` table and the ``EFERMI = ... eV`` summary (they agree).
+    """
+    pytest.importorskip("HamiltonIO")
+    from HamiltonIO.abacus.pw_wfc import AbacusPWParser
+
+    outpath = _outpath("si_pw_path")
+    if not os.path.isdir(outpath):
+        pytest.skip(f"ABACUS fixture {outpath} missing")
+    assert not os.path.exists(os.path.join(outpath, "running_scf.log"))
+    data = AbacusPWParser(outpath).read()
+    assert data.efermi == pytest.approx(6.2903334548, abs=1e-6)
+    # the VBM triple at Gamma sits exactly at the Fermi level
+    gamma = np.argsort(np.abs(data.kpoints).sum(axis=1))[0]
+    assert data.eigenvalues[gamma].max() == pytest.approx(data.efermi, abs=1e-4)
+
+
 def test_pw_scf_kpoints_ignore_symmetry_reduction_table(tmp_path):
     """Only the direct-coordinate table is wavefunction-indexed."""
     from HamiltonIO.abacus.pw_wfc import AbacusPWParser

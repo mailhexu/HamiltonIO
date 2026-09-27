@@ -57,6 +57,10 @@ class AbacusPWData:
         Per-k planewave coefficients (ABACUS-stored gauge).
     fft_grid : (3,) int ndarray
         Wavefunction FFT dimensions used to unfold the stored indices.
+    efermi : float or None
+        Fermi energy in eV, parsed from ``EFERMI = ... eV`` / the
+        ``E_Fermi <Ry> <eV>`` table of ``running_scf.log`` (preferred)
+        or ``running_nscf.log``; ``None`` when no log carries it.
     """
 
     kpoints: np.ndarray
@@ -65,6 +69,7 @@ class AbacusPWData:
     gvecs: list
     coefficients: list
     fft_grid: np.ndarray
+    efermi: float | None = None
 
 
 class AbacusPWParser:
@@ -107,6 +112,7 @@ class AbacusPWParser:
             kpoints=kpoints,
             kpoints_cart_tpiba=kpoints_cart,
             eigenvalues=eigenvalues,
+            efermi=self._read_efermi(),
             gvecs=gvecs,
             coefficients=coefficients,
             fft_grid=np.asarray(fft_grid, dtype=int),
@@ -158,6 +164,39 @@ class AbacusPWParser:
                 f"could not find the wavefunction FFT grid dimensions in {self.outpath}"
             )
         return tuple(int(g) for g in pattern.groups())
+
+    def _read_efermi(self):
+        """Fermi energy (eV) from ``running_scf.log`` / ``running_nscf.log``.
+
+        ABACUS prints either ``EFERMI = <eV> eV`` or an ``E_Fermi
+        <Ry> <eV>`` table row; the eV column is used and the last match
+        wins (the converged value). ``running_scf.log`` is searched
+        first because an nscf run does not update it. Returns ``None``
+        when neither log exists or neither carries a Fermi line.
+        """
+        import re
+
+        number = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
+        assignment = re.compile(
+            rf"\s*(?:EFERMI|E_Fermi)\s*=\s*({number})\s*(?:eV)?\s*$"
+        )
+        table_row = re.compile(rf"\s*E_Fermi\s+({number})\s+({number})\s*$")
+        for name in ("running_scf.log", "running_nscf.log"):
+            log = self.outpath / name
+            if not log.exists():
+                continue
+            efermi = None
+            for line in log.read_text().splitlines():
+                match = assignment.match(line)
+                if match:
+                    efermi = float(match.group(1))
+                    continue
+                match = table_row.match(line)
+                if match:
+                    efermi = float(match.group(2))
+            if efermi is not None:
+                return efermi
+        return None
 
     def _read_kpoints(self):
         """Supercell fractional k-points from the ``kpoints`` file."""

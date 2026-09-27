@@ -150,6 +150,8 @@ def test_efermi_matches_output_chemp():
     """efermi is ChemP converted Hartree -> eV (sc fixture: -0.09902 Ha)."""
     model = _parse(SC_SCFOUT).get_model()
     assert model.efermi == pytest.approx(-0.09902050121809 * Ha, abs=1e-6)
+    prim = _parse(PRIM_SCFOUT)
+    assert prim.efermi == pytest.approx(-0.10287990806711 * Ha, abs=1e-6)
     dop = _parse(SC_P_SCFOUT)
     assert dop.efermi == pytest.approx(-0.08645988543752 * Ha, abs=1e-6)
 
