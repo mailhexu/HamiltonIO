@@ -84,7 +84,7 @@ class SiestaHamiltonian(LCAOHamiltonian):
             nel=nel,
             orth=orth,
             orb_dict=orb_dict,
-            split_soc=split_soc
+            split_soc=split_soc,
         )
         self._name = "SIESTA"
         self.R2kfactor = 2j * np.pi
@@ -228,7 +228,7 @@ class SislParser:
                 orth=self.orth,
                 sisl_hamiltonian=self.ham,
                 orb_dict=self.orb_dict,
-                split_soc=self.read_H_soc
+                split_soc=self.read_H_soc,
             )
             return model
         else:
@@ -272,7 +272,12 @@ class SislParser:
         return model
 
     def read_Rlist(self, fdf):
-        return self.geom.sc_off
+        # The interaction shells are the sparse Hamiltonian's own supercell
+        # offsets. The fdf geometry carries no supercell information (its
+        # sc_off is always the single [[0, 0, 0]] row), so deriving the
+        # shells from it truncates every k-sampled .HSX to a single R block
+        # and crashes read_HS with a reshape ValueError.
+        return self.ham.lattice.sc_off
 
     def read_so_strength(self, fdf):
         return fdf.get("Spin.OrbitStrength", default=1.0)
