@@ -39,6 +39,7 @@ class SiestaHamiltonian(LCAOHamiltonian):
         spin_channel=None,
         orb_dict=None,
         split_soc=False,
+        use_sisl_hk=False,
     ):
         """
         Hamiltonian object for Siesta
@@ -69,6 +70,9 @@ class SiestaHamiltonian(LCAOHamiltonian):
             Spin channel (0 for up, 1 for down) for spin-polarized calculations
         orb_dict: dict
             Dictionary mapping atom index to list of orbital names (for SIESTA)
+        use_sisl_hk: bool
+            compute H(k) and S(k) with sisl directly from the sparse matrices of
+            sisl_hamiltonian. HR and SR may then be None.
         """
 
         super().__init__(
@@ -90,7 +94,7 @@ class SiestaHamiltonian(LCAOHamiltonian):
         self.R2kfactor = 2j * np.pi
         self.sisl_hamiltonian = sisl_hamiltonian
         self.spin_channel = spin_channel
-        self.use_sisl_implementation_hk_eigen = False
+        self.use_sisl_implementation_hk_eigen = use_sisl_hk
 
     def gen_ham(self, k, convention=2):
         """
@@ -164,7 +168,9 @@ class SiestaHamiltonian(LCAOHamiltonian):
             return Hk, Sk
 
         except Exception:
-            # If sisl fails, fall back to parent implementation
+            # If sisl fails, fall back to the dense H(R), S(R) if they were built
+            if self._HR is None:
+                raise
             return super().gen_ham(k, convention=convention)
 
 
@@ -173,13 +179,24 @@ class SislParser:
     Siesta Hamiltonian parser using sisl as backend
     """
 
-    def __init__(self, fdf_fname=None, ispin=None, read_H_soc=False, orth=False):
+    def __init__(
+        self, fdf_fname=None, ispin=None, read_H_soc=False, orth=False, sparse=False
+    ):
+        """
+        :param sparse: if True, the model computes H(k) and S(k) with sisl directly
+            from the sparse SIESTA matrices and the dense real-space arrays H(R) and
+            S(R) (nR x nbasis x nbasis each) are not built. This saves memory for
+            large cells or many supercell images; H(k) and S(k) are the same. The
+            model's HR and SR are then None; read_H_soc and ispin='merge' are not
+            supported.
+        """
         self.fdf = sisl.get_sile(fdf_fname)
         self.ham = self.fdf.read_hamiltonian()
         self.spin = self.ham.spin
         self.ispin = ispin
         self.read_H_soc = read_H_soc
         self.orth = orth
+        self.sparse = sparse
 
     def get_model(self):
         self.read_spin(self.ispin)
@@ -187,7 +204,14 @@ class SislParser:
         orbs, nbasis, norb = self.read_basis()
         Rlist = self.read_Rlist(self.geom)
         self.nR = len(Rlist)
-        HR, SR = self.read_HS(self.nR, norb)
+        if self.sparse:
+            if self.read_H_soc or self.ispin == "merge":
+                raise ValueError(
+                    "read_H_soc and ispin='merge' need the dense H(R); use sparse=False."
+                )
+            HR, SR = None, None
+        else:
+            HR, SR = self.read_HS(self.nR, norb)
         nel = self.read_nel(fdf=self.fdf)
         HR_soc = None
         HR_nosoc = None
@@ -229,11 +253,13 @@ class SislParser:
                 sisl_hamiltonian=self.ham,
                 orb_dict=self.orb_dict,
                 split_soc=self.read_H_soc,
+                use_sisl_hk=self.sparse,
             )
             return model
         else:
+            HR_up, HR_dn = (None, None) if HR is None else HR
             model_up = SiestaHamiltonian(
-                HR=HR[0],
+                HR=HR_up,
                 SR=SR,
                 Rlist=Rlist,
                 nbasis=nbasis,
@@ -247,9 +273,10 @@ class SislParser:
                 sisl_hamiltonian=self.ham,
                 spin_channel=0,  # Spin up channel
                 orb_dict=self.orb_dict,
+                use_sisl_hk=self.sparse,
             )
             model_down = SiestaHamiltonian(
-                HR=HR[1],
+                HR=HR_dn,
                 SR=SR,
                 Rlist=Rlist,
                 nbasis=nbasis,
@@ -263,6 +290,7 @@ class SislParser:
                 sisl_hamiltonian=self.ham,
                 spin_channel=1,  # Spin down channel
                 orb_dict=self.orb_dict,
+                use_sisl_hk=self.sparse,
             )
             model = (model_up, model_down)
             if self.ispin is not None:
