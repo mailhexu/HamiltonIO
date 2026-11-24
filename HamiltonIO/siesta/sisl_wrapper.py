@@ -96,6 +96,39 @@ class SiestaHamiltonian(LCAOHamiltonian):
         self.spin_channel = spin_channel
         self.use_sisl_implementation_hk_eigen = use_sisl_hk
 
+    def get_hamR(self, R):
+        """Return one dense real-space block, without expanding all sparse images."""
+        if self._HR is not None:
+            return super().get_hamR(R)
+
+        iR = self.get_Ridx(R)
+        ham = self.sisl_hamiltonian
+        no = ham.geometry.no
+        columns = slice(iR * no, (iR + 1) * no)
+
+        def component(index):
+            return ham.tocsr(index)[:, columns].toarray()
+
+        if self.spin_channel is not None:
+            return component(self.spin_channel)
+        if not (ham.spin.is_spinorbit or ham.spin.is_noncolinear):
+            return component(0)
+
+        # Match the interleaved spin ordering used by sisl and the dense parser.
+        ncomponents = 8 if ham.spin.is_spinorbit else 4
+        parts = [component(i) for i in range(ncomponents)]
+        block = np.empty((2 * no, 2 * no), dtype=complex)
+        block[::2, ::2] = parts[0]
+        block[1::2, 1::2] = parts[1]
+        block[::2, 1::2] = parts[2] + 1j * parts[3]
+        if ham.spin.is_spinorbit:
+            block[::2, ::2] += 1j * parts[4]
+            block[1::2, 1::2] += 1j * parts[5]
+            block[1::2, ::2] = parts[6] + 1j * parts[7]
+        else:
+            block[1::2, ::2] = parts[2] - 1j * parts[3]
+        return block
+
     def gen_ham(self, k, convention=2):
         """
         Generate Hamiltonian and overlap matrices at k-point using sisl.
