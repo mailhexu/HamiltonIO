@@ -80,3 +80,32 @@ def test_sparse_rejects_split_soc(tmp_path):
     fdf = _write_siesta(tmp_path, "spin-orbit")
     with pytest.raises(ValueError, match="dense H"):
         SislParser(fdf_fname=fdf, read_H_soc=True, sparse=True).get_model()
+
+
+@pytest.mark.parametrize("spin", ["unpolarized", "polarized", "spin-orbit"])
+def test_sparse_real_space_accessors(tmp_path, spin):
+    fdf = _write_siesta(tmp_path, spin)
+    for dense, sparse in zip(_models(fdf), _models(fdf, sparse=True)):
+        for R in [(0, 0, 0), (1, 0, 0), (-1, 1, 0)]:
+            np.testing.assert_allclose(sparse.get_hamR(R), dense.get_hamR(R))
+        np.testing.assert_allclose(sparse.get_H0(), dense.get_H0())
+        dense_blocks = dense.get_intra_atomic_blocks()
+        sparse_blocks = sparse.get_intra_atomic_blocks()
+        assert dense_blocks.keys() == sparse_blocks.keys()
+        for atom in dense_blocks:
+            np.testing.assert_allclose(
+                sparse_blocks[atom]["H_full"], dense_blocks[atom]["H_full"]
+            )
+        assert sparse.HR is None and sparse.SR is None
+
+
+def test_sparse_noncollinear_real_space_fourier_transform(tmp_path):
+    # The dense parser currently cannot read sisl's four-component NC layout.
+    model, = _models(_write_siesta(tmp_path, "non-collinear"), sparse=True)
+    for k in _KPTS:
+        reconstructed = sum(
+            model.get_hamR(R) * np.exp(2j * np.pi * np.dot(k, R))
+            for R in model.Rlist
+        )
+        np.testing.assert_allclose(reconstructed, model.gen_ham(k)[0], atol=1e-12)
+    assert model.HR is None and model.SR is None

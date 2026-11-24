@@ -98,7 +98,7 @@ class LCAOHamiltonian(Hamiltonian):
                 self.H0 = rotate_spinor_matrix_einsum_R(self.HR_nosoc, theta, phi)[R0]
             return self.H0
         else:
-            return self.HR[R0]
+            return self.get_hamR((0, 0, 0))
 
     def get_HR_soc(self, R):
         return self.HR_soc[self.get_Ridx(R)]
@@ -312,7 +312,7 @@ class LCAOHamiltonian(Hamiltonian):
         """
         # Get H(R=0)
         R0_idx = self.get_Ridx((0, 0, 0))
-        H0_full = self.HR[R0_idx]
+        H0_full = self.get_H0()
 
         # Get SOC decomposition if available
         H0_nosoc = None
