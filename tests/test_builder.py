@@ -97,6 +97,16 @@ def test_spin_duplication_uses_spin_interleaved_order():
     assert H0[3, 1] == pytest.approx(-0.5)
 
 
+def test_intra_atomic_blocks_include_split_soc():
+    ham = _builder().build(nspin=2).hamiltonian
+    nosoc = np.zeros_like(ham.HR, dtype=complex)
+    soc = np.zeros_like(nosoc)
+    soc[ham.get_Ridx((0, 0, 0)), 0, 0] = 2.0
+    ham.set_HR_soc(HR_soc=soc, HR_nosoc=nosoc, HR_full=nosoc + soc)
+    blocks = ham.get_intra_atomic_blocks()
+    assert blocks[0]["H_full"][0, 0] == pytest.approx(2.0)
+
+
 def test_hubbard_dict_and_initial_density_helpers():
     data = _builder().build(nspin=2, nel=4)
 

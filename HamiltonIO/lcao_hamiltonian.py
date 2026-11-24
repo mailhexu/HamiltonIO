@@ -312,7 +312,7 @@ class LCAOHamiltonian(Hamiltonian):
         """
         # Get H(R=0)
         R0_idx = self.get_Ridx((0, 0, 0))
-        H0_full = self.get_H0()
+        H0_full = self.get_hamR((0, 0, 0))
 
         # Get SOC decomposition if available
         H0_nosoc = None
